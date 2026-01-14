@@ -24,6 +24,15 @@
       max-width: 550px;
       margin: 0 auto;
       box-shadow: 0 0 10px rgba(255,255,255,0.2);
+      box-sizing: border-box;
+    }
+
+    h2 {
+      text-align: center;
+      color: #7cc6ff;
+      margin: 0 0 14px 0;
+      font-weight: 700;
+      font-size: 1.3em;
     }
 
     label, input, select {
@@ -36,15 +45,17 @@
       padding: 8px;
       border-radius: 5px;
       box-sizing: border-box;
-      font-family: 'Century Gothic';
+      font-family: 'Century Gothic', sans-serif;
     }
 
-    .section-title {
-      font-size: 1.3em;
-      font-weight: bold;
-      text-align: center;
-      margin: 18px 0 12px 0;
-      color: #7cc6ff;
+    input::placeholder {
+      color: #aaa;
+    }
+
+    .row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
     }
 
     .result-box {
@@ -67,120 +78,226 @@
       cursor: pointer;
       width: 100%;
       margin-top: 12px;
-      font-family: 'Century Gothic';
+      font-family: 'Century Gothic', sans-serif;
     }
 
     button:hover {
       background-color: #666;
     }
 
+    .muted {
+      color: #bbb;
+      font-size: 0.9em;
+      text-align: center;
+      margin-top: 6px;
+    }
+
+    .error {
+      color: #ff6b6b;
+      font-size: 0.95em;
+      margin-top: 6px;
+    }
   </style>
 </head>
 <body>
 
   <div class="container">
+    <h2>Drug Cost & Accumulator Calculator</h2>
 
-    <h2 class="section-title">Drug Cost & Accumulator Calculator</h2>
+    <!-- Drug retail cost -->
+    <label for="retail">drug retail cost ($):</label>
+    <input type="number" id="retail" placeholder="example: 150.00" min="0" step="0.01">
 
-    <!-- Drug info -->
-    <label>Drug retail cost ($):</label>
-    <input type="number" id="retail" placeholder="example: 150.00">
-
-    <!-- Cost type -->
-    <label>Member cost type:</label>
-    <select id="costType" onchange="switchCostType()">
+    <!-- Member cost selection: choose type then enter the number in one field -->
+    <label for="costType">member cost type:</label>
+    <select id="costType" onchange="onCostTypeChange()">
       <option value="">-- select an option --</option>
-      <option value="copay">Flat Copay</option>
-      <option value="coins">Coinsurance %</option>
+      <option value="copay">flat copay</option>
+      <option value="coins">coinsurance %</option>
     </select>
 
-    <label>Copay amount ($):</label>
-    <input type="number" id="copay" placeholder="example: 20" disabled>
-
-    <label>Coinsurance %:</label>
-    <input type="number" id="coins" placeholder="example: 25" disabled>
+    <label id="costValueLabel" for="costValue">enter amount:</label>
+    <input type="number" id="costValue" placeholder="enter amount" min="0" step="0.01" disabled>
 
     <!-- Accumulator info -->
-    <label>Current deductible paid ($):</label>
-    <input type="number" id="dedPaid" placeholder="example: 100">
+    <div class="row-2">
+      <div>
+        <label for="dedPaid">current deductible paid ($):</label>
+        <input type="number" id="dedPaid" placeholder="example: 100" min="0" step="0.01">
+      </div>
+      <div>
+        <label for="dedTotal">total deductible amount ($):</label>
+        <input type="number" id="dedTotal" placeholder="example: 250" min="0" step="0.01">
+      </div>
+    </div>
 
-    <label>Total deductible amount ($):</label>
-    <input type="number" id="dedTotal" placeholder="example: 250">
-
-    <label>Current out-of-pocket paid ($):</label>
-    <input type="number" id="oopPaid" placeholder="example: 400">
-
-    <label>Total out-of-pocket max ($):</label>
-    <input type="number" id="oopTotal" placeholder="example: 2000">
+    <div class="row-2">
+      <div>
+        <label for="oopPaid">current out-of-pocket paid ($):</label>
+        <input type="number" id="oopPaid" placeholder="example: 400" min="0" step="0.01">
+      </div>
+      <div>
+        <label for="oopTotal">total out-of-pocket max ($):</label>
+        <input type="number" id="oopTotal" placeholder="example: 2000" min="0" step="0.01">
+      </div>
+    </div>
 
     <button onclick="calcDrugCost()">calculate drug cost</button>
 
-    <!-- Results -->
-    <div id="results" class="result-box">Results will appear here...</div>
+    <div id="errorBox" class="error" aria-live="polite"></div>
 
+    <!-- Results -->
+    <div id="results" class="result-box">Results will appear here…</div>
+    <div class="muted">Note: This mock assumes deductible applies first, then copay/coinsurance. Member payments are capped by OOP.</div>
   </div>
 
   <script>
-    function switchCostType() {
-      let type = document.getElementById("costType").value;
+    function fmt(n) {
+      return (isFinite(n) ? n : 0).toFixed(2);
+    }
 
-      document.getElementById("copay").disabled = (type !== "copay");
-      document.getElementById("coins").disabled = (type !== "coins");
+    function onCostTypeChange() {
+      const type = document.getElementById('costType').value;
+      const costValue = document.getElementById('costValue');
+      const label = document.getElementById('costValueLabel');
+
+      if (!type) {
+        label.textContent = 'enter amount:';
+        costValue.placeholder = 'enter amount';
+        costValue.value = '';
+        costValue.disabled = true;
+        return;
+      }
+
+      if (type === 'copay') {
+        label.textContent = 'copay amount ($):';
+        costValue.placeholder = 'example: 25.00';
+        costValue.step = '0.01';
+      } else {
+        label.textContent = 'coinsurance %:';
+        costValue.placeholder = 'example: 25';
+        costValue.step = '0.01';
+      }
+
+      costValue.disabled = false;
+      costValue.focus();
     }
 
     function calcDrugCost() {
-      let retail = parseFloat(document.getElementById("retail").value) || 0;
-      let type = document.getElementById("costType").value;
+      const errorBox = document.getElementById('errorBox');
+      errorBox.textContent = '';
 
-      let copay = parseFloat(document.getElementById("copay").value) || 0;
-      let coins = parseFloat(document.getElementById("coins").value) || 0;
+      let retail = parseFloat(document.getElementById('retail').value) || 0;
+      const type = document.getElementById('costType').value;
+      let costValue = parseFloat(document.getElementById('costValue').value);
 
-      let dedPaid = parseFloat(document.getElementById("dedPaid").value) || 0;
-      let dedTotal = parseFloat(document.getElementById("dedTotal").value) || 0;
-      let oopPaid = parseFloat(document.getElementById("oopPaid").value) || 0;
-      let oopTotal = parseFloat(document.getElementById("oopTotal").value) || 0;
+      const dedPaid = parseFloat(document.getElementById('dedPaid').value) || 0;
+      const dedTotal = parseFloat(document.getElementById('dedTotal').value) || 0;
+      const oopPaid = parseFloat(document.getElementById('oopPaid').value) || 0;
+      const oopTotal = parseFloat(document.getElementById('oopTotal').value) || 0;
 
-      let remainingDed = Math.max(dedTotal - dedPaid, 0);
-      let remainingOOP = Math.max(oopTotal - oopPaid, 0);
+      // Basic validations
+      if (retail <= 0) {
+        errorBox.textContent = 'please enter a valid drug retail cost.';
+        document.getElementById('retail').focus();
+        return;
+      }
+      if (!type) {
+        errorBox.textContent = 'please select member cost type.';
+        document.getElementById('costType').focus();
+        return;
+      }
+      if (!isFinite(costValue) || costValue < 0) {
+        errorBox.textContent = 'please enter a valid amount for the selected cost type.';
+        document.getElementById('costValue').focus();
+        return;
+      }
+      if (dedTotal < 0 || oopTotal < 0) {
+        errorBox.textContent = 'please enter valid plan totals for deductible and OOP.';
+        return;
+      }
 
-      let memberCost = 0;
+      // Clamp paid vs totals
+      const safeDedPaid = Math.min(Math.max(dedPaid, 0), Math.max(dedTotal, 0));
+      const safeOopPaid = Math.min(Math.max(oopPaid, 0), Math.max(oopTotal, 0));
 
-      // If OOP already met, member pays nothing
-      if (oopPaid >= oopTotal) {
-        memberCost = 0;
-      } else {
-        // First apply deductible
-        if (remainingDed > 0) {
-          let appliedToDed = Math.min(retail, remainingDed);
-          memberCost += appliedToDed;
-          retail -= appliedToDed;
-          remainingDed -= appliedToDed;
-        }
+      let remainingDedBefore = Math.max(dedTotal - safeDedPaid, 0);
+      let remainingOOPBefore = Math.max(oopTotal - safeOopPaid, 0);
 
-        // After deductible, apply cost-sharing
-        if (retail > 0) {
-          if (type === "copay") {
-            memberCost += copay;
-          } else if (type === "coins") {
-            memberCost += (retail * (coins / 100));
-          }
+      // If OOP already met, member pays $0
+      if (safeOopPaid >= oopTotal) {
+        const results = [
+          `Remaining deductible before fill: $${fmt(remainingDedBefore)}`,
+          `Remaining OOP before fill: $${fmt(remainingOOPBefore)}`,
+          '',
+          `Member cost for this fill: $${fmt(0)}`,
+          '',
+          `Updated deductible after fill: $${fmt(safeDedPaid)}`,
+          `Updated OOP after fill: $${fmt(safeOopPaid)}`,
+          '',
+          remainingDedBefore > 0
+            ? `Remaining deductible after fill: $${fmt(remainingDedBefore)}`
+            : `Deductible satisfied`,
+          remainingOOPBefore > 0
+            ? `Remaining OOP after fill: $${fmt(remainingOOPBefore)}`
+            : `OOP satisfied`
+        ].join('\n');
+        document.getElementById('results').textContent = results;
+        return;
+      }
+
+      // Apply deductible first
+      let dedApplied = 0;
+      if (remainingDedBefore > 0) {
+        dedApplied = Math.min(retail, remainingDedBefore);
+      }
+
+      let retailAfterDed = retail - dedApplied;
+      let remainingDedAfter = Math.max(remainingDedBefore - dedApplied, 0);
+
+      // Apply cost-sharing on remaining retail
+      let costShare = 0;
+      if (retailAfterDed > 0) {
+        if (type === 'copay') {
+          costShare = costValue;
+        } else { // coins
+          costShare = retailAfterDed * (costValue / 100);
         }
       }
 
-      // Apply to OOP
-      let appliedToOOP = Math.min(memberCost, remainingOOP);
-      let newOOP = oopPaid + appliedToOOP;
-      let newDED = dedTotal - remainingDed;
+      // Total member cost pre-OOP cap
+      let memberCostPreCap = dedApplied + costShare;
 
-      document.getElementById("results").textContent =
-        `Remaining deductible before fill: $${(dedTotal - dedPaid).toFixed(2)}
-Remaining OOP before fill: $${(oopTotal - oopPaid).toFixed(2)}
+      // Cap member cost by remaining OOP
+      let remainingOOPAfter = Math.max(oopTotal - safeOopPaid, 0);
+      let memberCostFinal = Math.min(memberCostPreCap, remainingOOPAfter);
 
-Member cost for this fill: $${memberCost.toFixed(2)}
+      // Update accumulators
+      let newDedPaid = safeDedPaid + dedApplied;
+      let newOOP = safeOopPaid + memberCostFinal;
 
-Updated deductible after fill: $${newDED.toFixed(2)}
-Updated OOP after fill: $${newOOP.toFixed(2)}
-`;
+      // Remaining after fill (show if not satisfied)
+      let remainingDedAfterFill = Math.max(dedTotal - newDedPaid, 0);
+      let remainingOOPAfterFill = Math.max(oopTotal - newOOP, 0);
+
+      const results = [
+        `Remaining deductible before fill: $${fmt(remainingDedBefore)}`,
+        `Remaining OOP before fill: $${fmt(remainingOOPBefore)}`,
+        '',
+        `Member cost for this fill: $${fmt(memberCostFinal)}`,
+        '',
+        `Updated deductible after fill: $${fmt(newDedPaid)}`,
+        `Updated OOP after fill: $${fmt(newOOP)}`,
+        '',
+        remainingDedAfterFill > 0
+          ? `Remaining deductible after fill: $${fmt(remainingDedAfterFill)}`
+          : `Deductible satisfied`,
+        remainingOOPAfterFill > 0
+          ? `Remaining OOP after fill: $${fmt(remainingOOPAfterFill)}`
+          : `OOP satisfied`
+      ].join('\n');
+
+      document.getElementById('results').textContent = results;
     }
   </script>
 
