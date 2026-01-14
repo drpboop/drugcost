@@ -1,0 +1,188 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>drug cost & accumulator calculator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Century+Gothic&display=swap');
+
+    body {
+      background-color: #000;
+      color: #fff;
+      font-family: 'Century Gothic', sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      background-color: #111;
+      padding: 20px;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 550px;
+      margin: 0 auto;
+      box-shadow: 0 0 10px rgba(255,255,255,0.2);
+    }
+
+    label, input, select {
+      display: block;
+      width: 100%;
+      margin-bottom: 12px;
+      background-color: #222;
+      color: #fff;
+      border: none;
+      padding: 8px;
+      border-radius: 5px;
+      box-sizing: border-box;
+      font-family: 'Century Gothic';
+    }
+
+    .section-title {
+      font-size: 1.3em;
+      font-weight: bold;
+      text-align: center;
+      margin: 18px 0 12px 0;
+      color: #7cc6ff;
+    }
+
+    .result-box {
+      background-color: #222;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 15px;
+      font-size: 1.05em;
+      line-height: 1.5em;
+      color: #9bd1ff;
+      white-space: pre-wrap;
+    }
+
+    button {
+      background-color: #444;
+      color: #fff;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 12px;
+      font-family: 'Century Gothic';
+    }
+
+    button:hover {
+      background-color: #666;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <h2 class="section-title">Drug Cost & Accumulator Calculator</h2>
+
+    <!-- Drug info -->
+    <label>Drug retail cost ($):</label>
+    <input type="number" id="retail" placeholder="example: 150.00">
+
+    <!-- Cost type -->
+    <label>Member cost type:</label>
+    <select id="costType" onchange="switchCostType()">
+      <option value="">-- select an option --</option>
+      <option value="copay">Flat Copay</option>
+      <option value="coins">Coinsurance %</option>
+    </select>
+
+    <label>Copay amount ($):</label>
+    <input type="number" id="copay" placeholder="example: 20" disabled>
+
+    <label>Coinsurance %:</label>
+    <input type="number" id="coins" placeholder="example: 25" disabled>
+
+    <!-- Accumulator info -->
+    <label>Current deductible paid ($):</label>
+    <input type="number" id="dedPaid" placeholder="example: 100">
+
+    <label>Total deductible amount ($):</label>
+    <input type="number" id="dedTotal" placeholder="example: 250">
+
+    <label>Current out-of-pocket paid ($):</label>
+    <input type="number" id="oopPaid" placeholder="example: 400">
+
+    <label>Total out-of-pocket max ($):</label>
+    <input type="number" id="oopTotal" placeholder="example: 2000">
+
+    <button onclick="calcDrugCost()">calculate drug cost</button>
+
+    <!-- Results -->
+    <div id="results" class="result-box">Results will appear here...</div>
+
+  </div>
+
+  <script>
+    function switchCostType() {
+      let type = document.getElementById("costType").value;
+
+      document.getElementById("copay").disabled = (type !== "copay");
+      document.getElementById("coins").disabled = (type !== "coins");
+    }
+
+    function calcDrugCost() {
+      let retail = parseFloat(document.getElementById("retail").value) || 0;
+      let type = document.getElementById("costType").value;
+
+      let copay = parseFloat(document.getElementById("copay").value) || 0;
+      let coins = parseFloat(document.getElementById("coins").value) || 0;
+
+      let dedPaid = parseFloat(document.getElementById("dedPaid").value) || 0;
+      let dedTotal = parseFloat(document.getElementById("dedTotal").value) || 0;
+      let oopPaid = parseFloat(document.getElementById("oopPaid").value) || 0;
+      let oopTotal = parseFloat(document.getElementById("oopTotal").value) || 0;
+
+      let remainingDed = Math.max(dedTotal - dedPaid, 0);
+      let remainingOOP = Math.max(oopTotal - oopPaid, 0);
+
+      let memberCost = 0;
+
+      // If OOP already met, member pays nothing
+      if (oopPaid >= oopTotal) {
+        memberCost = 0;
+      } else {
+        // First apply deductible
+        if (remainingDed > 0) {
+          let appliedToDed = Math.min(retail, remainingDed);
+          memberCost += appliedToDed;
+          retail -= appliedToDed;
+          remainingDed -= appliedToDed;
+        }
+
+        // After deductible, apply cost-sharing
+        if (retail > 0) {
+          if (type === "copay") {
+            memberCost += copay;
+          } else if (type === "coins") {
+            memberCost += (retail * (coins / 100));
+          }
+        }
+      }
+
+      // Apply to OOP
+      let appliedToOOP = Math.min(memberCost, remainingOOP);
+      let newOOP = oopPaid + appliedToOOP;
+      let newDED = dedTotal - remainingDed;
+
+      document.getElementById("results").textContent =
+        `Remaining deductible before fill: $${(dedTotal - dedPaid).toFixed(2)}
+Remaining OOP before fill: $${(oopTotal - oopPaid).toFixed(2)}
+
+Member cost for this fill: $${memberCost.toFixed(2)}
+
+Updated deductible after fill: $${newDED.toFixed(2)}
+Updated OOP after fill: $${newOOP.toFixed(2)}
+`;
+    }
+  </script>
+
+</body>
+</html>
