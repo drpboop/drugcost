@@ -61,22 +61,6 @@
       gap: 10px;
     }
 
-    .result-box {
-      background-color: #222;
-      padding: 14px;
-      border-radius: 8px;
-      margin-top: 15px;
-      font-size: 1.05em;
-      line-height: 1.6em;
-      color: #d7eaff;
-      text-align: center;      /* center all result lines */
-    }
-
-    .result-box strong {
-      color: #ffffff;          /* bold, bright for emphasis */
-      font-weight: 700;
-    }
-
     button {
       background-color: #444;
       color: #fff;
@@ -101,6 +85,51 @@
       text-align: center;
       text-transform: lowercase;
     }
+
+    .result-box {
+      background-color: #222;
+      padding: 14px;
+      border-radius: 8px;
+      margin-top: 15px;
+      font-size: 1.05em;
+      line-height: 1.6em;
+      color: #d7eaff;
+      text-align: center;      /* center all result lines */
+      white-space: pre-wrap;
+    }
+
+    .result-heading {
+      color: #9bd1ff;
+      margin-top: 6px;
+      margin-bottom: 2px;
+      text-transform: lowercase;
+    }
+
+    .result-subheading {
+      color: #b6dbff;
+      margin-top: 10px;
+      margin-bottom: 2px;
+      text-transform: lowercase;
+    }
+
+    .result-label {
+      color: #cfe6ff;
+      margin-top: 10px;
+      margin-bottom: 2px;
+      text-transform: lowercase;
+    }
+
+    .result-value {
+      color: #ffffff;
+      margin-top: 0px;
+      margin-bottom: 6px;
+      /* not bold; plain text as requested */
+    }
+
+    .divider {
+      margin: 8px 0;
+      opacity: 0.35;
+    }
   </style>
 </head>
 <body>
@@ -123,7 +152,7 @@
     <label id="costValueLabel" for="costValue">enter amount:</label>
     <input type="number" id="costValue" placeholder="enter amount" min="0" step="0.01" disabled />
 
-    <!-- accumulators FIRST, then current paid NEXT (per your request) -->
+    <!-- accumulators FIRST, then current paid NEXT -->
     <div class="row-2">
       <div>
         <label for="dedTotal">total deductible amount ($):</label>
@@ -142,7 +171,7 @@
       </div>
       <div>
         <label for="oopPaid">current out-of-pocket paid ($):</label>
-        <input type="number" id="oopPaid" placeholder="(auto if blank)" min="0" step="0.01" />
+        <input type="number" id="oopPaid" placeholder="example: 400" min="0" step="0.01" />
       </div>
     </div>
 
@@ -185,22 +214,6 @@
       costValue.disabled = false;
       costValue.focus();
     }
-
-    // auto-fill current oop paid when current deductible paid is entered (if oop is blank)
-    document.addEventListener('DOMContentLoaded', () => {
-      const dedPaidEl = document.getElementById('dedPaid');
-      const oopPaidEl = document.getElementById('oopPaid');
-
-      const maybeFillOOP = () => {
-        if (oopPaidEl.value.trim() === '') {
-          oopPaidEl.value = dedPaidEl.value.trim();
-        }
-      };
-
-      dedPaidEl.addEventListener('input', maybeFillOOP);
-      // also run once in case browser autofills
-      maybeFillOOP();
-    });
 
     function calcDrugCost() {
       const errorBox = document.getElementById('errorBox');
@@ -250,12 +263,14 @@
           remainingOOPBefore,
           memberCostFinal: 0,
           newDedPaid: safeDedPaid,
-          newOOP: safeOopPaid
+          newOOP: safeOopPaid,
+          dedTotal,
+          oopTotal
         });
         return;
       }
 
-      // deductible applies first (your original logic)
+      // deductible applies first
       let dedApplied = 0;
       if (remainingDedBefore > 0) {
         dedApplied = Math.min(retail, remainingDedBefore);
@@ -309,24 +324,52 @@
       const remainingDedAfterFill = Math.max(dedTotal - newDedPaid, 0);
       const remainingOOPAfterFill = Math.max(oopTotal - newOOP, 0);
 
-      const lines = [
-        `remaining deductible before fill: <strong>$${fmt(remainingDedBefore)}</strong>`,
-        `remaining oop before fill: <strong>$${fmt(remainingOOPBefore)}</strong>`,
-        ``,
-        `member cost for this fill: <strong>$${fmt(memberCostFinal)}</strong>`,
-        ``,
-        `updated deductible after fill: <strong>$${fmt(newDedPaid)}</strong>`,
-        `updated oop after fill: <strong>$${fmt(newOOP)}</strong>`,
-        ``,
-        remainingDedAfterFill > 0
-          ? `remaining deductible after fill: <strong>$${fmt(remainingDedAfterFill)}</strong>`
-          : `deductible satisfied`,
-        remainingOOPAfterFill > 0
-          ? `remaining oop after fill: <strong>$${fmt(remainingOOPAfterFill)}</strong>`
-          : `oop satisfied`
-      ];
+      // build the new centered, sectioned layout:
+      // 1) mbr cost for rx
+      // 2) accumulators
+      //      prior to fill
+      //      after fill
+      //      remaining
+      const parts = [];
 
-      document.getElementById('results').innerHTML = lines.join('<br>');
+      // mbr cost for rx
+      parts.push(`<div class="result-heading">mbr cost for rx:</div>`);
+      parts.push(`<div class="result-value">$${fmt(memberCostFinal)}</div>`);
+      parts.push(`<div class="divider">— — —</div>`);
+
+      // accumulators
+      parts.push(`<div class="result-heading">accumulators</div>`);
+
+      // prior to fill
+      parts.push(`<div class="result-subheading">prior to fill</div>`);
+      parts.push(`<div class="result-label">deductible</div>`);
+      parts.push(`<div class="result-value">$${fmt(remainingDedBefore)}</div>`);
+      parts.push(`<div class="result-label">oop</div>`);
+      parts.push(`<div class="result-value">$${fmt(remainingOOPBefore)}</div>`);
+
+      // after fill
+      parts.push(`<div class="result-subheading">after fill</div>`);
+      parts.push(`<div class="result-label">deductible</div>`);
+      parts.push(`<div class="result-value">$${fmt(newDedPaid)}</div>`);
+      parts.push(`<div class="result-label">oop</div>`);
+      parts.push(`<div class="result-value">$${fmt(newOOP)}</div>`);
+
+      // remaining
+      parts.push(`<div class="result-subheading">remaining</div>`);
+      parts.push(`<div class="result-label">deductible</div>`);
+      parts.push(
+        `<div class="result-value">${
+          remainingDedAfterFill > 0 ? '$' + fmt(remainingDedAfterFill) : 'deductible satisfied'
+        }</div>`
+      );
+      parts.push(`<div class="result-label">oop</div>`);
+      parts.push(
+        `<div class="result-value">${
+          remainingOOPAfterFill > 0 ? '$' + fmt(remainingOOPAfterFill) : 'oop satisfied'
+        }</div>`
+      );
+
+      document.getElementById('results').innerHTML = parts.join('\n');
     }
   </script>
 
