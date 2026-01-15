@@ -82,12 +82,12 @@
       margin-top: var(--xtight);
     }
 
-    /* inline amount + unit selector */
-    .amount-row {
+    /* inline amount + unit selector (each with its own label above) */
+    .amount-grid {
       display: grid;
-      grid-template-columns: 1fr 80px;  /* input + narrow unit dropdown */
+      grid-template-columns: 1fr 120px;  /* amount input + unit dropdown */
       gap: var(--tight);
-      align-items: center;
+      align-items: start;
     }
 
     .error {
@@ -139,6 +139,9 @@
       opacity: 0.35;
       border-top: 1px solid #7a8aa0;
     }
+
+    /* hide utility */
+    .hide { display: none; }
   </style>
 </head>
 <body>
@@ -150,19 +153,25 @@
     <label for="retail">drug retail cost ($):</label>
     <input type="number" id="retail" placeholder="example: 150.00" min="0" step="0.01" />
 
-    <label for="shareAmount">member cost</label>
-    <div class="amount-row">
-      <input
-        type="number"
-        id="shareAmount"
-        placeholder="enter amount"
-        min="0"
-        step="0.01"
-      />
-      <select id="shareUnit" aria-label="unit">
-        <option value="$">$</option>
-        <option value="%">%</option>
-      </select>
+    <!-- amount first, then unit beside it -->
+    <div class="amount-grid">
+      <div>
+        <label for="shareAmount">member cost amount</label>
+        <input
+          type="number"
+          id="shareAmount"
+          placeholder="enter amount"
+          min="0"
+          step="0.01"
+        />
+      </div>
+      <div>
+        <label for="shareUnit">unit</label>
+        <select id="shareUnit" aria-label="unit">
+          <option value="$">$</option>
+          <option value="%">%</option>
+        </select>
+      </div>
     </div>
 
     <!-- totals first, then current paid -->
@@ -191,9 +200,25 @@
     <div id="errorBox" class="error" aria-live="polite"></div>
 
     <!-- results: tight layout, two compact boxes -->
-    <div id="boxCost" class="box" style="display:none;">
-      <div class="box-title">mbr cost for rx</div>
-      <div class="value-line" id="costValueOut">$0.00</div>
+    <div id="boxBenefit" class="box" style="display:none;">
+      <div class="box-title">mbr benefit structure</div>
+
+      <div class="label-line">member pays total</div>
+      <div class="value-line" id="mbTotal">$0.00</div>
+
+      <div class="divider"></div>
+
+      <div class="label-line">deductible applied</div>
+      <div class="value-line" id="mbDedApplied">$0.00</div>
+
+      <div class="label-line" id="mbShareLabel">cost-share applied</div>
+      <div class="value-line" id="mbShareApplied">$0.00</div>
+
+      <!-- only visible when OOP cap reduces member cost -->
+      <div id="capGroup" class="hide">
+        <div class="label-line">oop cap adjustment</div>
+        <div class="value-line" id="mbCapAdj">-$0.00</div>
+      </div>
     </div>
 
     <div id="boxAcc" class="box" style="display:none;">
@@ -243,22 +268,23 @@
       const oopTotal = parseFloat(document.getElementById('oopTotal').value) || 0;
       const oopPaid  = parseFloat(document.getElementById('oopPaid').value)  || 0;
 
-      // show results only once we have retail + amount + unit
+      // only render results once we have retail + amount + unit
       const hasRetail = retail > 0;
       const hasShare  = isFinite(shareVal) && shareVal >= 0 && (shareUnit === '$' || shareUnit === '%');
 
-      const boxCost = document.getElementById('boxCost');
+      const boxBenefit = document.getElementById('boxBenefit');
       const boxAcc  = document.getElementById('boxAcc');
 
       if (!(hasRetail && hasShare)) {
-        boxCost.style.display = 'none';
+        boxBenefit.style.display = 'none';
         boxAcc.style.display  = 'none';
         return;
       }
 
+      // basic sanity for totals
       if (dedTotal < 0 || oopTotal < 0) {
         errorBox.textContent = 'please enter valid plan totals for deductible and oop.';
-        boxCost.style.display = 'none';
+        boxBenefit.style.display = 'none';
         boxAcc.style.display  = 'none';
         return;
       }
@@ -270,17 +296,20 @@
       const remainingDedBefore = Math.max(dedTotal - safeDedPaid, 0);
       const remainingOOPBefore = Math.max(oopTotal - safeOopPaid, 0);
 
+      let dedApplied = 0;
+      let costShare = 0;
+      let preCap = 0;
       let memberCostFinal = 0;
+      let capAdj = 0;
       let newDedPaid = safeDedPaid;
       let newOOP = safeOopPaid;
 
       if (safeOopPaid < oopTotal) {
         // deductible first
-        const dedApplied = Math.min(remainingDedBefore, retail);
+        dedApplied = Math.min(remainingDedBefore, retail);
         const retailAfterDed = retail - dedApplied;
 
-        // cost-sharing: dollar = copay, percent = coinsurance
-        let costShare = 0;
+        // cost-sharing on the post-deductible remainder
         if (retailAfterDed > 0) {
           if (shareUnit === '$') {
             costShare = shareVal;
@@ -289,11 +318,12 @@
           }
         }
 
-        const preCap = dedApplied + costShare;
+        preCap = dedApplied + costShare;
 
-        // apply OOP cap
+        // OOP cap
         const remainingOOPAvail = Math.max(oopTotal - safeOopPaid, 0);
         memberCostFinal = Math.min(preCap, remainingOOPAvail);
+        capAdj = Math.max(preCap - memberCostFinal, 0); // how much the OOP cap reduced the charge
 
         // update accumulators paid
         newDedPaid = safeDedPaid + dedApplied;
@@ -304,16 +334,36 @@
       const remOopAfter = Math.max(oopTotal - newOOP, 0);
 
       // show + update UI
-      boxCost.style.display = '';
+      boxBenefit.style.display = '';
       boxAcc.style.display  = '';
 
-      document.getElementById('costValueOut').textContent = `$${fmt(memberCostFinal)}`;
-      document.getElementById('priorDed').textContent     = `$${fmt(remainingDedBefore)}`;
-      document.getElementById('priorOop').textContent     = `$${fmt(remainingOOPBefore)}`;
-      document.getElementById('afterDed').textContent     = `$${fmt(newDedPaid)}`;
-      document.getElementById('afterOop').textContent     = `$${fmt(newOOP)}`;
-      document.getElementById('remDed').textContent       = remDedAfter > 0 ? `$${fmt(remDedAfter)}` : 'satisfied';
-      document.getElementById('remOop').textContent       = remOopAfter > 0 ? `$${fmt(remOopAfter)}` : 'satisfied';
+      // benefit structure box
+      document.getElementById('mbTotal').textContent      = `$${fmt(memberCostFinal)}`;
+      document.getElementById('mbDedApplied').textContent = `$${fmt(dedApplied)}`;
+
+      // label the cost-share line based on unit
+      const shareLabelEl = document.getElementById('mbShareLabel');
+      shareLabelEl.textContent = (shareUnit === '$') ? 'copay applied' : 'coinsurance applied';
+      document.getElementById('mbShareApplied').textContent = `$${fmt(costShare)}`;
+
+      // OOP cap adjustment row (only show when positive)
+      const capGroup = document.getElementById('capGroup');
+      if (capAdj > 0.00001) {
+        capGroup.classList.remove('hide');
+        document.getElementById('mbCapAdj').textContent = `-$${fmt(capAdj)}`;
+      } else {
+        capGroup.classList.add('hide');
+      }
+
+      // accumulators box
+      document.getElementById('priorDed').textContent = `$${fmt(remainingDedBefore)}`;
+      document.getElementById('priorOop').textContent = `$${fmt(remainingOOPBefore)}`;
+
+      document.getElementById('afterDed').textContent = `$${fmt(newDedPaid)}`;
+      document.getElementById('afterOop').textContent = `$${fmt(newOOP)}`;
+
+      document.getElementById('remDed').textContent = remDedAfter > 0 ? `$${fmt(remDedAfter)}` : 'satisfied';
+      document.getElementById('remOop').textContent = remOopAfter > 0 ? `$${fmt(remOopAfter)}` : 'satisfied';
     }
 
     // bind auto-calc to all inputs & unit selector
