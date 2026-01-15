@@ -82,10 +82,10 @@
       margin-top: var(--xtight);
     }
 
-    /* inline amount + unit selector (each with its own label above) */
+    /* inline amount + type selector (each with its own label above) */
     .amount-grid {
       display: grid;
-      grid-template-columns: 1fr 120px;  /* amount input + unit dropdown */
+      grid-template-columns: 1fr 120px;  /* amount input + type dropdown */
       gap: var(--tight);
       align-items: start;
     }
@@ -153,10 +153,10 @@
     <label for="retail">drug retail cost ($):</label>
     <input type="number" id="retail" placeholder="example: 150.00" min="0" step="0.01" />
 
-    <!-- amount first, then unit beside it -->
+    <!-- amount first, then type beside it -->
     <div class="amount-grid">
       <div>
-        <label for="shareAmount">member cost amount</label>
+        <label for="shareAmount">mbr benefit</label>
         <input
           type="number"
           id="shareAmount"
@@ -166,8 +166,8 @@
         />
       </div>
       <div>
-        <label for="shareUnit">unit</label>
-        <select id="shareUnit" aria-label="unit">
+        <label for="shareUnit">type</label>
+        <select id="shareUnit" aria-label="type">
           <option value="$">$</option>
           <option value="%">%</option>
         </select>
@@ -201,17 +201,17 @@
 
     <!-- results: tight layout, two compact boxes -->
     <div id="boxBenefit" class="box" style="display:none;">
-      <div class="box-title">mbr benefit structure</div>
+      <div class="box-title">mbr costs</div>
 
-      <div class="label-line">member pays total</div>
+      <div class="label-line">total costs</div>
       <div class="value-line" id="mbTotal">$0.00</div>
 
       <div class="divider"></div>
 
-      <div class="label-line">deductible applied</div>
+      <div class="label-line">applied to deductible</div>
       <div class="value-line" id="mbDedApplied">$0.00</div>
 
-      <div class="label-line" id="mbShareLabel">cost-share applied</div>
+      <div class="label-line" id="mbShareLabel">applied to cost-share</div>
       <div class="value-line" id="mbShareApplied">$0.00</div>
 
       <!-- only visible when OOP cap reduces member cost -->
@@ -268,7 +268,7 @@
       const oopTotal = parseFloat(document.getElementById('oopTotal').value) || 0;
       const oopPaid  = parseFloat(document.getElementById('oopPaid').value)  || 0;
 
-      // only render results once we have retail + amount + unit
+      // only render results once we have retail + amount + type
       const hasRetail = retail > 0;
       const hasShare  = isFinite(shareVal) && shareVal >= 0 && (shareUnit === '$' || shareUnit === '%');
 
@@ -312,9 +312,9 @@
         // cost-sharing on the post-deductible remainder
         if (retailAfterDed > 0) {
           if (shareUnit === '$') {
-            costShare = shareVal;
+            costShare = shareVal; // copay
           } else {
-            costShare = retailAfterDed * (shareVal / 100);
+            costShare = retailAfterDed * (shareVal / 100); // coinsurance
           }
         }
 
@@ -323,7 +323,7 @@
         // OOP cap
         const remainingOOPAvail = Math.max(oopTotal - safeOopPaid, 0);
         memberCostFinal = Math.min(preCap, remainingOOPAvail);
-        capAdj = Math.max(preCap - memberCostFinal, 0); // how much the OOP cap reduced the charge
+        capAdj = Math.max(preCap - memberCostFinal, 0);
 
         // update accumulators paid
         newDedPaid = safeDedPaid + dedApplied;
@@ -337,16 +337,14 @@
       boxBenefit.style.display = '';
       boxAcc.style.display  = '';
 
-      // benefit structure box
+      // mbr costs (renamed & reworded)
       document.getElementById('mbTotal').textContent      = `$${fmt(memberCostFinal)}`;
       document.getElementById('mbDedApplied').textContent = `$${fmt(dedApplied)}`;
 
-      // label the cost-share line based on unit
       const shareLabelEl = document.getElementById('mbShareLabel');
-      shareLabelEl.textContent = (shareUnit === '$') ? 'copay applied' : 'coinsurance applied';
+      shareLabelEl.textContent = (shareUnit === '$') ? 'applied to copay' : 'applied to coinsurance';
       document.getElementById('mbShareApplied').textContent = `$${fmt(costShare)}`;
 
-      // OOP cap adjustment row (only show when positive)
       const capGroup = document.getElementById('capGroup');
       if (capAdj > 0.00001) {
         capGroup.classList.remove('hide');
@@ -366,7 +364,7 @@
       document.getElementById('remOop').textContent = remOopAfter > 0 ? `$${fmt(remOopAfter)}` : 'satisfied';
     }
 
-    // bind auto-calc to all inputs & unit selector
+    // bind auto-calc to all inputs & type selector
     function bindAutoCalc() {
       const ids = [
         'retail',
