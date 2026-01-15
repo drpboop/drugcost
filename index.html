@@ -58,6 +58,23 @@
       gap: 10px;
     }
 
+    .toggles {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .toggle-item {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 8px;
+      background-color: #222;
+      padding: 10px;
+      border-radius: 6px;
+    }
+
     .result-box {
       background-color: #222;
       padding: 12px;
@@ -96,6 +113,11 @@
       color: #ff6b6b;
       font-size: 0.95em;
       margin-top: 6px;
+    }
+
+    /* Medicare phase panel (shows only when medicare toggle on) */
+    #medicarePanel.hidden {
+      display: none;
     }
   </style>
 </head>
@@ -142,13 +164,43 @@
       </div>
     </div>
 
+    <!-- Toggles -->
+    <div class="toggles">
+      <div class="toggle-item">
+        <input type="checkbox" id="dedNotApply">
+        <span>deductible does NOT apply</span>
+      </div>
+      <div class="toggle-item">
+        <input type="checkbox" id="isMedicare" onchange="toggleMedicare()">
+        <span>medicare plan (use phase selector)</span>
+      </div>
+    </div>
+
+    <!-- Medicare phase selector (shown only when medicare toggle is ON) -->
+    <div id="medicarePanel" class="row-2 hidden" style="margin-top:10px;">
+      <div>
+        <label for="medicarePhase">medicare phase:</label>
+        <select id="medicarePhase">
+          <option value="">-- select an option --</option>
+          <option value="deductible">Deductible</option>
+          <option value="initial">Initial Coverage</option>
+          <option value="gap">Coverage Gap</option>
+          <option value="catastrophic">Catastrophic</option>
+        </select>
+      </div>
+      <div>
+        <!-- Optional note: cost sharing in each phase is controlled by your selected "member cost type" + amount -->
+        <label style="background:#111; padding:0; margin:0; border:none;"> </label>
+      </div>
+    </div>
+
     <button onclick="calcDrugCost()">calculate drug cost</button>
 
     <div id="errorBox" class="error" aria-live="polite"></div>
 
     <!-- Results -->
     <div id="results" class="result-box">Results will appear here…</div>
-    <div class="muted">Note: This mock assumes deductible applies first, then copay/coinsurance. Member payments are capped by OOP.</div>
+    <div class="muted">Note: Deductible is applied first unless “does NOT apply” is checked or Medicare phase ≠ Deductible. Member payments always cap at remaining OOP.</div>
   </div>
 
   <script>
@@ -183,20 +235,31 @@
       costValue.focus();
     }
 
+    function toggleMedicare() {
+      const isMedicare = document.getElementById('isMedicare').checked;
+      const panel = document.getElementById('medicarePanel');
+      panel.classList.toggle('hidden', !isMedicare);
+    }
+
     function calcDrugCost() {
       const errorBox = document.getElementById('errorBox');
       errorBox.textContent = '';
 
       let retail = parseFloat(document.getElementById('retail').value) || 0;
       const type = document.getElementById('costType').value;
-      let costValue = parseFloat(document.getElementById('costValue').value);
+      const costValueRaw = document.getElementById('costValue').value;
+      let costValue = parseFloat(costValueRaw);
 
       const dedPaid = parseFloat(document.getElementById('dedPaid').value) || 0;
       const dedTotal = parseFloat(document.getElementById('dedTotal').value) || 0;
       const oopPaid = parseFloat(document.getElementById('oopPaid').value) || 0;
       const oopTotal = parseFloat(document.getElementById('oopTotal').value) || 0;
 
-      // Basic validations
+      const dedNotApply = document.getElementById('dedNotApply').checked;
+      const isMedicare = document.getElementById('isMedicare').checked;
+      const medicarePhase = document.getElementById('medicarePhase').value;
+
+      // Basic validations (preserve your previous correct flow)
       if (retail <= 0) {
         errorBox.textContent = 'please enter a valid drug retail cost.';
         document.getElementById('retail').focus();
@@ -216,6 +279,11 @@
         errorBox.textContent = 'please enter valid plan totals for deductible and OOP.';
         return;
       }
+      if (isMedicare && !medicarePhase) {
+        errorBox.textContent = 'please select a medicare phase.';
+        document.getElementById('medicarePhase').focus();
+        return;
+      }
 
       // Clamp paid vs totals
       const safeDedPaid = Math.min(Math.max(dedPaid, 0), Math.max(dedTotal, 0));
@@ -224,7 +292,7 @@
       let remainingDedBefore = Math.max(dedTotal - safeDedPaid, 0);
       let remainingOOPBefore = Math.max(oopTotal - safeOopPaid, 0);
 
-      // If OOP already met, member pays $0
+      // If OOP already met, member pays nothing
       if (safeOopPaid >= oopTotal) {
         const results = [
           `Remaining deductible before fill: $${fmt(remainingDedBefore)}`,
@@ -246,16 +314,26 @@
         return;
       }
 
-      // Apply deductible first
+      // Decide whether deductible applies:
+      // - Commercial: applies unless "does NOT apply" checked.
+      // - Medicare: applies ONLY when phase == 'deductible', unless "does NOT apply" checked.
+      let deductibleApplies = true;
+      if (dedNotApply) {
+        deductibleApplies = false;
+      } else if (isMedicare) {
+        deductibleApplies = (medicarePhase === 'deductible');
+      } // else (commercial, not checked): deductible applies
+
+      // Apply deductible first (the same way your correct logic did)
       let dedApplied = 0;
-      if (remainingDedBefore > 0) {
+      if (deductibleApplies && remainingDedBefore > 0) {
         dedApplied = Math.min(retail, remainingDedBefore);
       }
 
       let retailAfterDed = retail - dedApplied;
       let remainingDedAfter = Math.max(remainingDedBefore - dedApplied, 0);
 
-      // Apply cost-sharing on remaining retail
+      // Apply cost-sharing on remaining retail (same as before)
       let costShare = 0;
       if (retailAfterDed > 0) {
         if (type === 'copay') {
@@ -280,6 +358,7 @@
       let remainingDedAfterFill = Math.max(dedTotal - newDedPaid, 0);
       let remainingOOPAfterFill = Math.max(oopTotal - newOOP, 0);
 
+      // Build results (unchanged style/content + remaining amounts)
       const results = [
         `Remaining deductible before fill: $${fmt(remainingDedBefore)}`,
         `Remaining OOP before fill: $${fmt(remainingOOPBefore)}`,
