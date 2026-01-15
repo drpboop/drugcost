@@ -50,7 +50,18 @@
       font-size: 1.2em;              /* compact */
     }
 
-    label, input, select {
+    label {
+      display: block;
+      width: 100%;
+      margin: var(--xtight) 0 var(--xtight) 2px; /* very tight label spacing */
+      background: transparent;
+      color: var(--hint2);
+      border: none;
+      padding: 0;
+      font-family: 'Century Gothic', sans-serif;
+    }
+
+    input, select {
       display: block;
       width: 100%;
       margin-bottom: var(--xtight);  /* extra tight between controls */
@@ -62,13 +73,6 @@
       font-family: 'Century Gothic', sans-serif;
     }
 
-    label {
-      background: transparent;
-      padding: 0;
-      margin: var(--xtight) 0 var(--xtight) 2px; /* very tight label spacing */
-      color: var(--hint2);
-    }
-
     input::placeholder { color: #9aa5b1; }
 
     .row-2 {
@@ -76,6 +80,14 @@
       grid-template-columns: 1fr 1fr;
       gap: var(--tight);            /* tight column gap */
       margin-top: var(--xtight);
+    }
+
+    /* inline amount + unit selector */
+    .amount-row {
+      display: grid;
+      grid-template-columns: 1fr 80px;  /* input + narrow unit dropdown */
+      gap: var(--tight);
+      align-items: center;
     }
 
     .error {
@@ -138,22 +150,20 @@
     <label for="retail">drug retail cost ($):</label>
     <input type="number" id="retail" placeholder="example: 150.00" min="0" step="0.01" />
 
-    <label for="costType">member cost type:</label>
-    <select id="costType">
-      <option value="">-- select an option --</option>
-      <option value="copay">flat copay</option>
-      <option value="coins">coinsurance %</option>
-    </select>
-
-    <label id="costValueLabel" for="costValue">enter amount:</label>
-    <input
-      type="number"
-      id="costValue"
-      placeholder="enter amount"
-      min="0"
-      step="0.01"
-      disabled
-    />
+    <label for="shareAmount">member cost</label>
+    <div class="amount-row">
+      <input
+        type="number"
+        id="shareAmount"
+        placeholder="enter amount"
+        min="0"
+        step="0.01"
+      />
+      <select id="shareUnit" aria-label="unit">
+        <option value="$">$</option>
+        <option value="%">%</option>
+      </select>
+    </div>
 
     <!-- totals first, then current paid -->
     <div class="row-2">
@@ -217,63 +227,35 @@
     // format helper
     function fmt(n) { return (isFinite(n) ? n : 0).toFixed(2); }
 
-    // set label/placeholder and enable/disable the amount field based on type
-    function applyCostTypeUI({ recalc = true } = {}) {
-      const type = document.getElementById('costType').value;
-      const costValue = document.getElementById('costValue');
-      const label = document.getElementById('costValueLabel');
-
-      if (!type) {
-        label.textContent = 'enter amount:';
-        costValue.placeholder = 'enter amount';
-        costValue.disabled = true;
-        if (recalc) compute();
-        return;
-      }
-
-      if (type === 'copay') {
-        label.textContent = 'copay amount ($):';
-        costValue.placeholder = 'example: 25.00'; // example only (no default)
-        costValue.step = '0.01';
-      } else {
-        label.textContent = 'coinsurance %:';
-        costValue.placeholder = 'example: 20';     // example only (no default)
-        costValue.step = '0.01';
-      }
-
-      costValue.disabled = false;
-      if (recalc) compute();
-    }
-
     // core math (deductible first -> copay/coins -> OOP cap)
     function compute() {
       const errorBox = document.getElementById('errorBox');
       errorBox.textContent = '';
 
       const retail   = parseFloat(document.getElementById('retail').value)   || 0;
-      const type     = document.getElementById('costType').value;
-      const costRaw  = document.getElementById('costValue').value;
-      const costVal  = costRaw === '' ? NaN : parseFloat(costRaw);
+
+      const shareRaw = document.getElementById('shareAmount').value;
+      const shareVal = shareRaw === '' ? NaN : parseFloat(shareRaw);
+      const shareUnit = document.getElementById('shareUnit').value; // '$' or '%'
 
       const dedTotal = parseFloat(document.getElementById('dedTotal').value) || 0;
       const dedPaid  = parseFloat(document.getElementById('dedPaid').value)  || 0;
       const oopTotal = parseFloat(document.getElementById('oopTotal').value) || 0;
       const oopPaid  = parseFloat(document.getElementById('oopPaid').value)  || 0;
 
-      // only render results once we have retail + type + amount
+      // show results only once we have retail + amount + unit
       const hasRetail = retail > 0;
-      const hasCostType = !!type && isFinite(costVal) && costVal >= 0;
+      const hasShare  = isFinite(shareVal) && shareVal >= 0 && (shareUnit === '$' || shareUnit === '%');
 
       const boxCost = document.getElementById('boxCost');
       const boxAcc  = document.getElementById('boxAcc');
 
-      if (!(hasRetail && hasCostType)) {
+      if (!(hasRetail && hasShare)) {
         boxCost.style.display = 'none';
         boxAcc.style.display  = 'none';
         return;
       }
 
-      // basic sanity for totals
       if (dedTotal < 0 || oopTotal < 0) {
         errorBox.textContent = 'please enter valid plan totals for deductible and oop.';
         boxCost.style.display = 'none';
@@ -297,19 +279,19 @@
         const dedApplied = Math.min(remainingDedBefore, retail);
         const retailAfterDed = retail - dedApplied;
 
-        // cost-sharing
+        // cost-sharing: dollar = copay, percent = coinsurance
         let costShare = 0;
         if (retailAfterDed > 0) {
-          if (type === 'copay') {
-            costShare = costVal;
+          if (shareUnit === '$') {
+            costShare = shareVal;
           } else {
-            costShare = retailAfterDed * (costVal / 100);
+            costShare = retailAfterDed * (shareVal / 100);
           }
         }
 
         const preCap = dedApplied + costShare;
 
-        // OOP cap
+        // apply OOP cap
         const remainingOOPAvail = Math.max(oopTotal - safeOopPaid, 0);
         memberCostFinal = Math.min(preCap, remainingOOPAvail);
 
@@ -334,32 +316,23 @@
       document.getElementById('remOop').textContent       = remOopAfter > 0 ? `$${fmt(remOopAfter)}` : 'satisfied';
     }
 
-    // bind auto-calc
+    // bind auto-calc to all inputs & unit selector
     function bindAutoCalc() {
       const ids = [
-        'retail','costType','costValue',
+        'retail',
+        'shareAmount','shareUnit',
         'dedTotal','dedPaid','oopTotal','oopPaid'
       ];
       ids.forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
-
-        const handler = () => {
-          if (id === 'costType') {
-            applyCostTypeUI({ recalc: true }); // update label/placeholder & recompute
-          } else {
-            compute();
-          }
-        };
-
-        el.addEventListener('input', handler);
-        el.addEventListener('change', handler);
+        el.addEventListener('input', compute);
+        el.addEventListener('change', compute);
       });
     }
 
     // init
     document.addEventListener('DOMContentLoaded', () => {
-      applyCostTypeUI({ recalc: false }); // sets initial disabled state for amount
       bindAutoCalc();
       compute(); // run once for autofilled values (if any)
     });
