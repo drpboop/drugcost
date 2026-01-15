@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>drug cost & accumulator calculator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
@@ -33,6 +33,7 @@
       margin: 0 0 14px 0;
       font-weight: 700;
       font-size: 1.3em;
+      text-transform: lowercase; /* ensure lowercase */
     }
 
     label, input, select {
@@ -46,10 +47,12 @@
       border-radius: 5px;
       box-sizing: border-box;
       font-family: 'Century Gothic', sans-serif;
+      text-transform: lowercase; /* visible text lowercase */
     }
 
     input::placeholder {
       color: #aaa;
+      text-transform: lowercase;
     }
 
     .row-2 {
@@ -58,32 +61,20 @@
       gap: 10px;
     }
 
-    .toggles {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 6px;
-    }
-
-    .toggle-item {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      align-items: center;
-      gap: 8px;
-      background-color: #222;
-      padding: 10px;
-      border-radius: 6px;
-    }
-
     .result-box {
       background-color: #222;
-      padding: 12px;
+      padding: 14px;
       border-radius: 8px;
       margin-top: 15px;
       font-size: 1.05em;
-      line-height: 1.5em;
-      color: #9bd1ff;
-      white-space: pre-wrap;
+      line-height: 1.6em;
+      color: #d7eaff;
+      text-align: center;      /* center all result lines */
+    }
+
+    .result-box strong {
+      color: #ffffff;          /* bold, bright for emphasis */
+      font-weight: 700;
     }
 
     button {
@@ -96,41 +87,32 @@
       width: 100%;
       margin-top: 12px;
       font-family: 'Century Gothic', sans-serif;
+      text-transform: lowercase;
     }
 
     button:hover {
       background-color: #666;
     }
 
-    .muted {
-      color: #bbb;
-      font-size: 0.9em;
-      text-align: center;
-      margin-top: 6px;
-    }
-
     .error {
       color: #ff6b6b;
       font-size: 0.95em;
       margin-top: 6px;
-    }
-
-    /* Medicare phase panel (shows only when medicare toggle on) */
-    #medicarePanel.hidden {
-      display: none;
+      text-align: center;
+      text-transform: lowercase;
     }
   </style>
 </head>
 <body>
 
   <div class="container">
-    <h2>Drug Cost & Accumulator Calculator</h2>
+    <h2>drug cost & accumulator calculator</h2>
 
-    <!-- Drug retail cost -->
+    <!-- drug retail cost -->
     <label for="retail">drug retail cost ($):</label>
-    <input type="number" id="retail" placeholder="example: 150.00" min="0" step="0.01">
+    <input type="number" id="retail" placeholder="example: 150.00" min="0" step="0.01" />
 
-    <!-- Member cost selection: choose type then enter the number in one field -->
+    <!-- member cost: select type then enter the number in one field -->
     <label for="costType">member cost type:</label>
     <select id="costType" onchange="onCostTypeChange()">
       <option value="">-- select an option --</option>
@@ -139,58 +121,28 @@
     </select>
 
     <label id="costValueLabel" for="costValue">enter amount:</label>
-    <input type="number" id="costValue" placeholder="enter amount" min="0" step="0.01" disabled>
+    <input type="number" id="costValue" placeholder="enter amount" min="0" step="0.01" disabled />
 
-    <!-- Accumulator info -->
+    <!-- accumulators FIRST, then current paid NEXT (per your request) -->
     <div class="row-2">
-      <div>
-        <label for="dedPaid">current deductible paid ($):</label>
-        <input type="number" id="dedPaid" placeholder="example: 100" min="0" step="0.01">
-      </div>
       <div>
         <label for="dedTotal">total deductible amount ($):</label>
-        <input type="number" id="dedTotal" placeholder="example: 250" min="0" step="0.01">
+        <input type="number" id="dedTotal" placeholder="example: 250" min="0" step="0.01" />
+      </div>
+      <div>
+        <label for="dedPaid">current deductible paid ($):</label>
+        <input type="number" id="dedPaid" placeholder="example: 100" min="0" step="0.01" />
       </div>
     </div>
 
     <div class="row-2">
       <div>
-        <label for="oopPaid">current out-of-pocket paid ($):</label>
-        <input type="number" id="oopPaid" placeholder="example: 400" min="0" step="0.01">
-      </div>
-      <div>
         <label for="oopTotal">total out-of-pocket max ($):</label>
-        <input type="number" id="oopTotal" placeholder="example: 2000" min="0" step="0.01">
-      </div>
-    </div>
-
-    <!-- Toggles -->
-    <div class="toggles">
-      <div class="toggle-item">
-        <input type="checkbox" id="dedNotApply">
-        <span>deductible does NOT apply</span>
-      </div>
-      <div class="toggle-item">
-        <input type="checkbox" id="isMedicare" onchange="toggleMedicare()">
-        <span>medicare plan (use phase selector)</span>
-      </div>
-    </div>
-
-    <!-- Medicare phase selector (shown only when medicare toggle is ON) -->
-    <div id="medicarePanel" class="row-2 hidden" style="margin-top:10px;">
-      <div>
-        <label for="medicarePhase">medicare phase:</label>
-        <select id="medicarePhase">
-          <option value="">-- select an option --</option>
-          <option value="deductible">Deductible</option>
-          <option value="initial">Initial Coverage</option>
-          <option value="gap">Coverage Gap</option>
-          <option value="catastrophic">Catastrophic</option>
-        </select>
+        <input type="number" id="oopTotal" placeholder="example: 2000" min="0" step="0.01" />
       </div>
       <div>
-        <!-- Optional note: cost sharing in each phase is controlled by your selected "member cost type" + amount -->
-        <label style="background:#111; padding:0; margin:0; border:none;"> </label>
+        <label for="oopPaid">current out-of-pocket paid ($):</label>
+        <input type="number" id="oopPaid" placeholder="(auto if blank)" min="0" step="0.01" />
       </div>
     </div>
 
@@ -198,9 +150,8 @@
 
     <div id="errorBox" class="error" aria-live="polite"></div>
 
-    <!-- Results -->
-    <div id="results" class="result-box">Results will appear here…</div>
-    <div class="muted">Note: Deductible is applied first unless “does NOT apply” is checked or Medicare phase ≠ Deductible. Member payments always cap at remaining OOP.</div>
+    <!-- results -->
+    <div id="results" class="result-box">results will appear here…</div>
   </div>
 
   <script>
@@ -235,11 +186,21 @@
       costValue.focus();
     }
 
-    function toggleMedicare() {
-      const isMedicare = document.getElementById('isMedicare').checked;
-      const panel = document.getElementById('medicarePanel');
-      panel.classList.toggle('hidden', !isMedicare);
-    }
+    // auto-fill current oop paid when current deductible paid is entered (if oop is blank)
+    document.addEventListener('DOMContentLoaded', () => {
+      const dedPaidEl = document.getElementById('dedPaid');
+      const oopPaidEl = document.getElementById('oopPaid');
+
+      const maybeFillOOP = () => {
+        if (oopPaidEl.value.trim() === '') {
+          oopPaidEl.value = dedPaidEl.value.trim();
+        }
+      };
+
+      dedPaidEl.addEventListener('input', maybeFillOOP);
+      // also run once in case browser autofills
+      maybeFillOOP();
+    });
 
     function calcDrugCost() {
       const errorBox = document.getElementById('errorBox');
@@ -247,19 +208,14 @@
 
       let retail = parseFloat(document.getElementById('retail').value) || 0;
       const type = document.getElementById('costType').value;
-      const costValueRaw = document.getElementById('costValue').value;
-      let costValue = parseFloat(costValueRaw);
+      let costValue = parseFloat(document.getElementById('costValue').value);
 
-      const dedPaid = parseFloat(document.getElementById('dedPaid').value) || 0;
       const dedTotal = parseFloat(document.getElementById('dedTotal').value) || 0;
-      const oopPaid = parseFloat(document.getElementById('oopPaid').value) || 0;
+      const dedPaid = parseFloat(document.getElementById('dedPaid').value) || 0;
       const oopTotal = parseFloat(document.getElementById('oopTotal').value) || 0;
+      const oopPaid = parseFloat(document.getElementById('oopPaid').value) || 0;
 
-      const dedNotApply = document.getElementById('dedNotApply').checked;
-      const isMedicare = document.getElementById('isMedicare').checked;
-      const medicarePhase = document.getElementById('medicarePhase').value;
-
-      // Basic validations (preserve your previous correct flow)
+      // validations (lowercase messages)
       if (retail <= 0) {
         errorBox.textContent = 'please enter a valid drug retail cost.';
         document.getElementById('retail').focus();
@@ -276,107 +232,101 @@
         return;
       }
       if (dedTotal < 0 || oopTotal < 0) {
-        errorBox.textContent = 'please enter valid plan totals for deductible and OOP.';
-        return;
-      }
-      if (isMedicare && !medicarePhase) {
-        errorBox.textContent = 'please select a medicare phase.';
-        document.getElementById('medicarePhase').focus();
+        errorBox.textContent = 'please enter valid plan totals for deductible and oop.';
         return;
       }
 
-      // Clamp paid vs totals
+      // clamp paid vs totals
       const safeDedPaid = Math.min(Math.max(dedPaid, 0), Math.max(dedTotal, 0));
       const safeOopPaid = Math.min(Math.max(oopPaid, 0), Math.max(oopTotal, 0));
 
       let remainingDedBefore = Math.max(dedTotal - safeDedPaid, 0);
       let remainingOOPBefore = Math.max(oopTotal - safeOopPaid, 0);
 
-      // If OOP already met, member pays nothing
+      // if oop already met, member pays $0
       if (safeOopPaid >= oopTotal) {
-        const results = [
-          `Remaining deductible before fill: $${fmt(remainingDedBefore)}`,
-          `Remaining OOP before fill: $${fmt(remainingOOPBefore)}`,
-          '',
-          `Member cost for this fill: $${fmt(0)}`,
-          '',
-          `Updated deductible after fill: $${fmt(safeDedPaid)}`,
-          `Updated OOP after fill: $${fmt(safeOopPaid)}`,
-          '',
-          remainingDedBefore > 0
-            ? `Remaining deductible after fill: $${fmt(remainingDedBefore)}`
-            : `Deductible satisfied`,
-          remainingOOPBefore > 0
-            ? `Remaining OOP after fill: $${fmt(remainingOOPBefore)}`
-            : `OOP satisfied`
-        ].join('\n');
-        document.getElementById('results').textContent = results;
+        renderResults({
+          remainingDedBefore,
+          remainingOOPBefore,
+          memberCostFinal: 0,
+          newDedPaid: safeDedPaid,
+          newOOP: safeOopPaid
+        });
         return;
       }
 
-      // Decide whether deductible applies:
-      // - Commercial: applies unless "does NOT apply" checked.
-      // - Medicare: applies ONLY when phase == 'deductible', unless "does NOT apply" checked.
-      let deductibleApplies = true;
-      if (dedNotApply) {
-        deductibleApplies = false;
-      } else if (isMedicare) {
-        deductibleApplies = (medicarePhase === 'deductible');
-      } // else (commercial, not checked): deductible applies
-
-      // Apply deductible first (the same way your correct logic did)
+      // deductible applies first (your original logic)
       let dedApplied = 0;
-      if (deductibleApplies && remainingDedBefore > 0) {
+      if (remainingDedBefore > 0) {
         dedApplied = Math.min(retail, remainingDedBefore);
       }
 
       let retailAfterDed = retail - dedApplied;
-      let remainingDedAfter = Math.max(remainingDedBefore - dedApplied, 0);
 
-      // Apply cost-sharing on remaining retail (same as before)
+      // cost-sharing on remaining retail
       let costShare = 0;
       if (retailAfterDed > 0) {
         if (type === 'copay') {
           costShare = costValue;
-        } else { // coins
+        } else {
           costShare = retailAfterDed * (costValue / 100);
         }
       }
 
-      // Total member cost pre-OOP cap
+      // total member cost before oop cap
       let memberCostPreCap = dedApplied + costShare;
 
-      // Cap member cost by remaining OOP
-      let remainingOOPAfter = Math.max(oopTotal - safeOopPaid, 0);
-      let memberCostFinal = Math.min(memberCostPreCap, remainingOOPAfter);
+      // apply oop cap
+      let remainingOOPAvail = Math.max(oopTotal - safeOopPaid, 0);
+      let memberCostFinal = Math.min(memberCostPreCap, remainingOOPAvail);
 
-      // Update accumulators
+      // update accumulators
       let newDedPaid = safeDedPaid + dedApplied;
       let newOOP = safeOopPaid + memberCostFinal;
 
-      // Remaining after fill (show if not satisfied)
-      let remainingDedAfterFill = Math.max(dedTotal - newDedPaid, 0);
-      let remainingOOPAfterFill = Math.max(oopTotal - newOOP, 0);
+      renderResults({
+        remainingDedBefore,
+        remainingOOPBefore,
+        memberCostFinal,
+        newDedPaid,
+        newOOP,
+        dedTotal,
+        oopTotal
+      });
+    }
 
-      // Build results (unchanged style/content + remaining amounts)
-      const results = [
-        `Remaining deductible before fill: $${fmt(remainingDedBefore)}`,
-        `Remaining OOP before fill: $${fmt(remainingOOPBefore)}`,
-        '',
-        `Member cost for this fill: $${fmt(memberCostFinal)}`,
-        '',
-        `Updated deductible after fill: $${fmt(newDedPaid)}`,
-        `Updated OOP after fill: $${fmt(newOOP)}`,
-        '',
+    function renderResults(data) {
+      const {
+        remainingDedBefore = 0,
+        remainingOOPBefore = 0,
+        memberCostFinal = 0,
+        newDedPaid = 0,
+        newOOP = 0,
+        dedTotal = 0,
+        oopTotal = 0
+      } = data;
+
+      const remainingDedAfterFill = Math.max(dedTotal - newDedPaid, 0);
+      const remainingOOPAfterFill = Math.max(oopTotal - newOOP, 0);
+
+      const lines = [
+        `remaining deductible before fill: <strong>$${fmt(remainingDedBefore)}</strong>`,
+        `remaining oop before fill: <strong>$${fmt(remainingOOPBefore)}</strong>`,
+        ``,
+        `member cost for this fill: <strong>$${fmt(memberCostFinal)}</strong>`,
+        ``,
+        `updated deductible after fill: <strong>$${fmt(newDedPaid)}</strong>`,
+        `updated oop after fill: <strong>$${fmt(newOOP)}</strong>`,
+        ``,
         remainingDedAfterFill > 0
-          ? `Remaining deductible after fill: $${fmt(remainingDedAfterFill)}`
-          : `Deductible satisfied`,
+          ? `remaining deductible after fill: <strong>$${fmt(remainingDedAfterFill)}</strong>`
+          : `deductible satisfied`,
         remainingOOPAfterFill > 0
-          ? `Remaining OOP after fill: $${fmt(remainingOOPAfterFill)}`
-          : `OOP satisfied`
-      ].join('\n');
+          ? `remaining oop after fill: <strong>$${fmt(remainingOOPAfterFill)}</strong>`
+          : `oop satisfied`
+      ];
 
-      document.getElementById('results').textContent = results;
+      document.getElementById('results').innerHTML = lines.join('<br>');
     }
   </script>
 
