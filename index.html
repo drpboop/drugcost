@@ -8,127 +8,136 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Century+Gothic&display=swap');
 
+    :root{
+      --bg:#000;
+      --panel:#111;
+      --field:#222;
+      --text:#fff;
+      --hint:#9bd1ff;
+      --hint2:#cfe6ff;
+      --muted:#b9cde6;
+      --shadow:0 0 10px rgba(255,255,255,0.2);
+      --tight:8px;
+      --xtight:4px;
+    }
+
+    * { box-sizing: border-box; }
+
     body {
-      background-color: #000;
-      color: #fff;
+      background-color: var(--bg);
+      color: var(--text);
       font-family: 'Century Gothic', sans-serif;
       margin: 0;
       padding: 20px;
+      text-transform: lowercase;
     }
 
     .container {
-      background-color: #111;
-      padding: 20px;
+      background-color: var(--panel);
+      padding: 16px;                 /* tight */
       border-radius: 10px;
       width: 90%;
       max-width: 550px;
       margin: 0 auto;
-      box-shadow: 0 0 10px rgba(255,255,255,0.2);
-      box-sizing: border-box;
+      box-shadow: var(--shadow);
     }
 
     h2 {
       text-align: center;
       color: #7cc6ff;
-      margin: 0 0 14px 0;
+      margin: 0 0 var(--tight) 0;    /* tight */
       font-weight: 700;
-      font-size: 1.3em;
-      text-transform: lowercase; /* ensure lowercase */
+      font-size: 1.2em;              /* compact */
     }
 
     label, input, select {
       display: block;
       width: 100%;
-      margin-bottom: 12px;
-      background-color: #222;
-      color: #fff;
+      margin-bottom: var(--xtight);  /* extra tight between controls */
+      background-color: var(--field);
+      color: var(--text);
       border: none;
       padding: 8px;
-      border-radius: 5px;
-      box-sizing: border-box;
+      border-radius: 6px;
       font-family: 'Century Gothic', sans-serif;
-      text-transform: lowercase; /* visible text lowercase */
     }
 
-    input::placeholder {
-      color: #aaa;
-      text-transform: lowercase;
+    label {
+      background: transparent;
+      padding: 0;
+      margin: var(--xtight) 0 var(--xtight) 2px; /* very tight label spacing */
+      color: var(--hint2);
     }
+
+    input::placeholder { color: #9aa5b1; }
 
     .row-2 {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
+      gap: var(--tight);            /* tight column gap */
+      margin-top: var(--xtight);
     }
 
     button {
       background-color: #444;
       color: #fff;
       border: none;
-      padding: 10px 15px;
-      border-radius: 5px;
+      padding: 10px 12px;           /* compact */
+      border-radius: 6px;
       cursor: pointer;
       width: 100%;
-      margin-top: 12px;
+      margin-top: var(--tight);
       font-family: 'Century Gothic', sans-serif;
-      text-transform: lowercase;
     }
-
-    button:hover {
-      background-color: #666;
-    }
+    button:hover { background-color: #666; }
 
     .error {
       color: #ff6b6b;
       font-size: 0.95em;
-      margin-top: 6px;
+      margin-top: var(--xtight);
       text-align: center;
-      text-transform: lowercase;
     }
 
-    .result-box {
-      background-color: #222;
-      padding: 14px;
+    /* compact result boxes */
+    .box {
+      background-color: var(--field);
       border-radius: 8px;
-      margin-top: 15px;
-      font-size: 1.05em;
-      line-height: 1.6em;
-      color: #d7eaff;
-      text-align: center;      /* center all result lines */
-      white-space: pre-wrap;
+      padding: 10px;                /* tight padding */
+      margin-top: var(--tight);
+      text-align: center;
+      line-height: 1.35;            /* tight line height */
+      color: var(--muted);
     }
 
-    .result-heading {
-      color: #9bd1ff;
-      margin-top: 6px;
-      margin-bottom: 2px;
-      text-transform: lowercase;
+    .box-title {
+      color: var(--hint);
+      margin: 0 0 6px 0;            /* tight */
+      font-weight: 600;
+      font-size: 1.0em;
     }
 
-    .result-subheading {
-      color: #b6dbff;
-      margin-top: 10px;
-      margin-bottom: 2px;
-      text-transform: lowercase;
+    .sub-title {
+      color: var(--hint2);
+      margin: 6px 0 4px 0;          /* tight */
+      font-weight: 600;
+      font-size: 0.95em;
     }
 
-    .result-label {
-      color: #cfe6ff;
-      margin-top: 10px;
-      margin-bottom: 2px;
-      text-transform: lowercase;
+    .label-line {
+      margin-top: 4px;              /* label separated slightly */
+      color: var(--hint2);
     }
 
-    .result-value {
+    .value-line {
+      margin-top: 2px;              /* value sits directly beneath label */
       color: #ffffff;
-      margin-top: 0px;
-      margin-bottom: 6px;
-      /* not bold; plain text as requested */
     }
 
     .divider {
-      margin: 8px 0;
+      margin: 6px auto;
+      width: 60%;
       opacity: 0.35;
+      border-top: 1px solid #7a8aa0;
     }
   </style>
 </head>
@@ -137,11 +146,10 @@
   <div class="container">
     <h2>drug cost & accumulator calculator</h2>
 
-    <!-- drug retail cost -->
+    <!-- inputs -->
     <label for="retail">drug retail cost ($):</label>
     <input type="number" id="retail" placeholder="example: 150.00" min="0" step="0.01" />
 
-    <!-- member cost: select type then enter the number in one field -->
     <label for="costType">member cost type:</label>
     <select id="costType" onchange="onCostTypeChange()">
       <option value="">-- select an option --</option>
@@ -152,7 +160,7 @@
     <label id="costValueLabel" for="costValue">enter amount:</label>
     <input type="number" id="costValue" placeholder="enter amount" min="0" step="0.01" disabled />
 
-    <!-- accumulators FIRST, then current paid NEXT -->
+    <!-- totals first, then current paid -->
     <div class="row-2">
       <div>
         <label for="dedTotal">total deductible amount ($):</label>
@@ -176,17 +184,43 @@
     </div>
 
     <button onclick="calcDrugCost()">calculate drug cost</button>
-
     <div id="errorBox" class="error" aria-live="polite"></div>
 
-    <!-- results -->
-    <div id="results" class="result-box">results will appear here…</div>
+    <!-- results: tight layout, two compact boxes -->
+    <div id="boxCost" class="box" style="display:none;">
+      <div class="box-title">mbr cost for rx</div>
+      <div class="value-line" id="costValueOut">$0.00</div>
+    </div>
+
+    <div id="boxAcc" class="box" style="display:none;">
+      <div class="box-title">accumulators</div>
+
+      <div class="sub-title">prior to fill</div>
+      <div class="label-line">deductible</div>
+      <div class="value-line" id="priorDed">$0.00</div>
+      <div class="label-line">oop</div>
+      <div class="value-line" id="priorOop">$0.00</div>
+
+      <div class="divider"></div>
+
+      <div class="sub-title">after fill</div>
+      <div class="label-line">deductible</div>
+      <div class="value-line" id="afterDed">$0.00</div>
+      <div class="label-line">oop</div>
+      <div class="value-line" id="afterOop">$0.00</div>
+
+      <div class="divider"></div>
+
+      <div class="sub-title">remaining</div>
+      <div class="label-line">deductible</div>
+      <div class="value-line" id="remDed">$0.00</div>
+      <div class="label-line">oop</div>
+      <div class="value-line" id="remOop">$0.00</div>
+    </div>
   </div>
 
   <script>
-    function fmt(n) {
-      return (isFinite(n) ? n : 0).toFixed(2);
-    }
+    function fmt(n) { return (isFinite(n) ? n : 0).toFixed(2); }
 
     function onCostTypeChange() {
       const type = document.getElementById('costType').value;
@@ -228,26 +262,10 @@
       const oopTotal = parseFloat(document.getElementById('oopTotal').value) || 0;
       const oopPaid = parseFloat(document.getElementById('oopPaid').value) || 0;
 
-      // validations (lowercase messages)
-      if (retail <= 0) {
-        errorBox.textContent = 'please enter a valid drug retail cost.';
-        document.getElementById('retail').focus();
-        return;
-      }
-      if (!type) {
-        errorBox.textContent = 'please select member cost type.';
-        document.getElementById('costType').focus();
-        return;
-      }
-      if (!isFinite(costValue) || costValue < 0) {
-        errorBox.textContent = 'please enter a valid amount for the selected cost type.';
-        document.getElementById('costValue').focus();
-        return;
-      }
-      if (dedTotal < 0 || oopTotal < 0) {
-        errorBox.textContent = 'please enter valid plan totals for deductible and oop.';
-        return;
-      }
+      if (retail <= 0) { errorBox.textContent = 'please enter a valid drug retail cost.'; return; }
+      if (!type) { errorBox.textContent = 'please select member cost type.'; return; }
+      if (!isFinite(costValue) || costValue < 0) { errorBox.textContent = 'please enter a valid amount for the selected cost type.'; return; }
+      if (dedTotal < 0 || oopTotal < 0) { errorBox.textContent = 'please enter valid plan totals for deductible and oop.'; return; }
 
       // clamp paid vs totals
       const safeDedPaid = Math.min(Math.max(dedPaid, 0), Math.max(dedTotal, 0));
@@ -258,7 +276,7 @@
 
       // if oop already met, member pays $0
       if (safeOopPaid >= oopTotal) {
-        renderResults({
+        updateOutputs({
           remainingDedBefore,
           remainingOOPBefore,
           memberCostFinal: 0,
@@ -270,7 +288,7 @@
         return;
       }
 
-      // deductible applies first
+      // deductible first (original logic)
       let dedApplied = 0;
       if (remainingDedBefore > 0) {
         dedApplied = Math.min(retail, remainingDedBefore);
@@ -288,18 +306,18 @@
         }
       }
 
-      // total member cost before oop cap
+      // member cost before OOP cap
       let memberCostPreCap = dedApplied + costShare;
 
-      // apply oop cap
+      // apply OOP cap
       let remainingOOPAvail = Math.max(oopTotal - safeOopPaid, 0);
       let memberCostFinal = Math.min(memberCostPreCap, remainingOOPAvail);
 
-      // update accumulators
+      // updated accumulators
       let newDedPaid = safeDedPaid + dedApplied;
       let newOOP = safeOopPaid + memberCostFinal;
 
-      renderResults({
+      updateOutputs({
         remainingDedBefore,
         remainingOOPBefore,
         memberCostFinal,
@@ -310,7 +328,7 @@
       });
     }
 
-    function renderResults(data) {
+    function updateOutputs(data) {
       const {
         remainingDedBefore = 0,
         remainingOOPBefore = 0,
@@ -324,52 +342,24 @@
       const remainingDedAfterFill = Math.max(dedTotal - newDedPaid, 0);
       const remainingOOPAfterFill = Math.max(oopTotal - newOOP, 0);
 
-      // build the new centered, sectioned layout:
-      // 1) mbr cost for rx
-      // 2) accumulators
-      //      prior to fill
-      //      after fill
-      //      remaining
-      const parts = [];
+      // show boxes
+      document.getElementById('boxCost').style.display = '';
+      document.getElementById('boxAcc').style.display = '';
 
-      // mbr cost for rx
-      parts.push(`<div class="result-heading">mbr cost for rx:</div>`);
-      parts.push(`<div class="result-value">$${fmt(memberCostFinal)}</div>`);
-      parts.push(`<div class="divider">— — —</div>`);
+      // cost box
+      document.getElementById('costValueOut').textContent = `$${fmt(memberCostFinal)}`;
 
-      // accumulators
-      parts.push(`<div class="result-heading">accumulators</div>`);
+      // accumulators: prior to fill
+      document.getElementById('priorDed').textContent = `$${fmt(remainingDedBefore)}`;
+      document.getElementById('priorOop').textContent = `$${fmt(remainingOOPBefore)}`;
 
-      // prior to fill
-      parts.push(`<div class="result-subheading">prior to fill</div>`);
-      parts.push(`<div class="result-label">deductible</div>`);
-      parts.push(`<div class="result-value">$${fmt(remainingDedBefore)}</div>`);
-      parts.push(`<div class="result-label">oop</div>`);
-      parts.push(`<div class="result-value">$${fmt(remainingOOPBefore)}</div>`);
+      // after fill (totals paid)
+      document.getElementById('afterDed').textContent = `$${fmt(newDedPaid)}`;
+      document.getElementById('afterOop').textContent = `$${fmt(newOOP)}`;
 
-      // after fill
-      parts.push(`<div class="result-subheading">after fill</div>`);
-      parts.push(`<div class="result-label">deductible</div>`);
-      parts.push(`<div class="result-value">$${fmt(newDedPaid)}</div>`);
-      parts.push(`<div class="result-label">oop</div>`);
-      parts.push(`<div class="result-value">$${fmt(newOOP)}</div>`);
-
-      // remaining
-      parts.push(`<div class="result-subheading">remaining</div>`);
-      parts.push(`<div class="result-label">deductible</div>`);
-      parts.push(
-        `<div class="result-value">${
-          remainingDedAfterFill > 0 ? '$' + fmt(remainingDedAfterFill) : 'deductible satisfied'
-        }</div>`
-      );
-      parts.push(`<div class="result-label">oop</div>`);
-      parts.push(
-        `<div class="result-value">${
-          remainingOOPAfterFill > 0 ? '$' + fmt(remainingOOPAfterFill) : 'oop satisfied'
-        }</div>`
-      );
-
-      document.getElementById('results').innerHTML = parts.join('\n');
+      // remaining (use “satisfied” if 0 or less)
+      document.getElementById('remDed').textContent = remainingDedAfterFill > 0 ? `$${fmt(remainingDedAfterFill)}` : 'satisfied';
+      document.getElementById('remOop').textContent  = remainingOOPAfterFill > 0 ? `$${fmt(remainingOOPAfterFill)}` : 'satisfied';
     }
   </script>
 
