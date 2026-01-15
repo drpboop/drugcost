@@ -136,7 +136,7 @@
 
     <!-- inputs -->
     <label for="retail">drug retail cost ($):</label>
-    <input type="number" id="retail" placeholder="example: 13588.74" min="0" step="0.01" />
+    <input type="number" id="retail" placeholder="example: 150.00" min="0" step="0.01" />
 
     <label for="costType">member cost type:</label>
     <select id="costType">
@@ -146,13 +146,20 @@
     </select>
 
     <label id="costValueLabel" for="costValue">enter amount:</label>
-    <input type="number" id="costValue" placeholder="enter amount" min="0" step="0.01" disabled />
+    <input
+      type="number"
+      id="costValue"
+      placeholder="enter amount"
+      min="0"
+      step="0.01"
+      disabled
+    />
 
     <!-- totals first, then current paid -->
     <div class="row-2">
       <div>
         <label for="dedTotal">total deductible amount ($):</label>
-        <input type="number" id="dedTotal" placeholder="example: 5500" min="0" step="0.01" />
+        <input type="number" id="dedTotal" placeholder="example: 250" min="0" step="0.01" />
       </div>
       <div>
         <label for="dedPaid">current deductible paid ($):</label>
@@ -210,8 +217,8 @@
     // format helper
     function fmt(n) { return (isFinite(n) ? n : 0).toFixed(2); }
 
-    // enable/disable the amount field and set label based on cost type
-    function applyCostTypeUI() {
+    // set label/placeholder and enable/disable the amount field based on type
+    function applyCostTypeUI({ recalc = true } = {}) {
       const type = document.getElementById('costType').value;
       const costValue = document.getElementById('costValue');
       const label = document.getElementById('costValueLabel');
@@ -219,25 +226,26 @@
       if (!type) {
         label.textContent = 'enter amount:';
         costValue.placeholder = 'enter amount';
-        costValue.value = '';
         costValue.disabled = true;
+        if (recalc) compute();
         return;
       }
 
       if (type === 'copay') {
         label.textContent = 'copay amount ($):';
-        costValue.placeholder = 'example: 25.00';
+        costValue.placeholder = 'example: 25.00'; // example only (no default)
         costValue.step = '0.01';
       } else {
         label.textContent = 'coinsurance %:';
-        costValue.placeholder = 'example: 20';
+        costValue.placeholder = 'example: 20';     // example only (no default)
         costValue.step = '0.01';
       }
 
       costValue.disabled = false;
+      if (recalc) compute();
     }
 
-    // core math
+    // core math (deductible first -> copay/coins -> OOP cap)
     function compute() {
       const errorBox = document.getElementById('errorBox');
       errorBox.textContent = '';
@@ -252,21 +260,20 @@
       const oopTotal = parseFloat(document.getElementById('oopTotal').value) || 0;
       const oopPaid  = parseFloat(document.getElementById('oopPaid').value)  || 0;
 
-      // determine if we have enough to show results
+      // only render results once we have retail + type + amount
       const hasRetail = retail > 0;
       const hasCostType = !!type && isFinite(costVal) && costVal >= 0;
 
       const boxCost = document.getElementById('boxCost');
       const boxAcc  = document.getElementById('boxAcc');
 
-      // Hide until we have minimum info (prevents “nothing changed” confusion)
       if (!(hasRetail && hasCostType)) {
         boxCost.style.display = 'none';
         boxAcc.style.display  = 'none';
         return;
       }
 
-      // Basic sanity for totals (don’t spam errors until we have something)
+      // basic sanity for totals
       if (dedTotal < 0 || oopTotal < 0) {
         errorBox.textContent = 'please enter valid plan totals for deductible and oop.';
         boxCost.style.display = 'none';
@@ -274,7 +281,7 @@
         return;
       }
 
-      // Clamp paid vs totals
+      // clamp paid vs totals
       const safeDedPaid = Math.min(Math.max(dedPaid, 0), Math.max(dedTotal, 0));
       const safeOopPaid = Math.min(Math.max(oopPaid, 0), Math.max(oopTotal, 0));
 
@@ -285,14 +292,12 @@
       let newDedPaid = safeDedPaid;
       let newOOP = safeOopPaid;
 
-      if (safeOopPaid >= oopTotal) {
-        // OOP met -> member pays 0, accumulators unchanged
-      } else {
-        // Deductible first
+      if (safeOopPaid < oopTotal) {
+        // deductible first
         const dedApplied = Math.min(remainingDedBefore, retail);
         const retailAfterDed = retail - dedApplied;
 
-        // Cost-sharing after deductible
+        // cost-sharing
         let costShare = 0;
         if (retailAfterDed > 0) {
           if (type === 'copay') {
@@ -304,11 +309,11 @@
 
         const preCap = dedApplied + costShare;
 
-        // Apply OOP cap
+        // OOP cap
         const remainingOOPAvail = Math.max(oopTotal - safeOopPaid, 0);
         memberCostFinal = Math.min(preCap, remainingOOPAvail);
 
-        // Update accumulators paid
+        // update accumulators paid
         newDedPaid = safeDedPaid + dedApplied;
         newOOP     = safeOopPaid + memberCostFinal;
       }
@@ -316,7 +321,7 @@
       const remDedAfter = Math.max(dedTotal - newDedPaid, 0);
       const remOopAfter = Math.max(oopTotal - newOOP, 0);
 
-      // Show and update UI
+      // show + update UI
       boxCost.style.display = '';
       boxAcc.style.display  = '';
 
@@ -329,7 +334,7 @@
       document.getElementById('remOop').textContent       = remOopAfter > 0 ? `$${fmt(remOopAfter)}` : 'satisfied';
     }
 
-    // Bind auto-calc to all inputs
+    // bind auto-calc
     function bindAutoCalc() {
       const ids = [
         'retail','costType','costValue',
@@ -338,22 +343,25 @@
       ids.forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
-        el.addEventListener('input', () => {
-          if (id === 'costType') applyCostTypeUI();
-          compute();
-        });
-        el.addEventListener('change', () => {
-          if (id === 'costType') applyCostTypeUI();
-          compute();
-        });
+
+        const handler = () => {
+          if (id === 'costType') {
+            applyCostTypeUI({ recalc: true }); // update label/placeholder & recompute
+          } else {
+            compute();
+          }
+        };
+
+        el.addEventListener('input', handler);
+        el.addEventListener('change', handler);
       });
     }
 
-    // Initialize
+    // init
     document.addEventListener('DOMContentLoaded', () => {
-      applyCostTypeUI();  // set the correct state for cost amount field
-      bindAutoCalc();     // attach listeners
-      compute();          // run once (helps when browser autofills saved values)
+      applyCostTypeUI({ recalc: false }); // sets initial disabled state for amount
+      bindAutoCalc();
+      compute(); // run once for autofilled values (if any)
     });
   </script>
 
