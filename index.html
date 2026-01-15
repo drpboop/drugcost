@@ -78,24 +78,12 @@
       margin-top: var(--xtight);
     }
 
-    button {
-      background-color: #444;
-      color: #fff;
-      border: none;
-      padding: 10px 12px;           /* compact */
-      border-radius: 6px;
-      cursor: pointer;
-      width: 100%;
-      margin-top: var(--tight);
-      font-family: 'Century Gothic', sans-serif;
-    }
-    button:hover { background-color: #666; }
-
     .error {
       color: #ff6b6b;
       font-size: 0.95em;
       margin-top: var(--xtight);
       text-align: center;
+      min-height: 1.2em;            /* keep layout steady */
     }
 
     /* compact result boxes */
@@ -130,7 +118,7 @@
 
     .value-line {
       margin-top: 2px;              /* value sits directly beneath label */
-      color: #ffffff;
+      color: #ffffff;               /* plain (not bold) */
     }
 
     .divider {
@@ -151,7 +139,7 @@
     <input type="number" id="retail" placeholder="example: 150.00" min="0" step="0.01" />
 
     <label for="costType">member cost type:</label>
-    <select id="costType" onchange="onCostTypeChange()">
+    <select id="costType">
       <option value="">-- select an option --</option>
       <option value="copay">flat copay</option>
       <option value="coins">coinsurance %</option>
@@ -183,7 +171,6 @@
       </div>
     </div>
 
-    <button onclick="calcDrugCost()">calculate drug cost</button>
     <div id="errorBox" class="error" aria-live="polite"></div>
 
     <!-- results: tight layout, two compact boxes -->
@@ -220,9 +207,11 @@
   </div>
 
   <script>
+    // format helper
     function fmt(n) { return (isFinite(n) ? n : 0).toFixed(2); }
 
-    function onCostTypeChange() {
+    // update label & enable/disable amount field
+    function applyCostTypeUI() {
       const type = document.getElementById('costType').value;
       const costValue = document.getElementById('costValue');
       const label = document.getElementById('costValueLabel');
@@ -246,121 +235,129 @@
       }
 
       costValue.disabled = false;
-      costValue.focus();
     }
 
-    function calcDrugCost() {
+    // core math (unchanged logic you approved)
+    function compute() {
       const errorBox = document.getElementById('errorBox');
       errorBox.textContent = '';
 
-      let retail = parseFloat(document.getElementById('retail').value) || 0;
-      const type = document.getElementById('costType').value;
-      let costValue = parseFloat(document.getElementById('costValue').value);
-
+      // read inputs safely
+      const retail   = parseFloat(document.getElementById('retail').value)   || 0;
+      const type     = document.getElementById('costType').value;
+      const costVal  = parseFloat(document.getElementById('costValue').value);
       const dedTotal = parseFloat(document.getElementById('dedTotal').value) || 0;
-      const dedPaid = parseFloat(document.getElementById('dedPaid').value) || 0;
+      const dedPaid  = parseFloat(document.getElementById('dedPaid').value)  || 0;
       const oopTotal = parseFloat(document.getElementById('oopTotal').value) || 0;
-      const oopPaid = parseFloat(document.getElementById('oopPaid').value) || 0;
+      const oopPaid  = parseFloat(document.getElementById('oopPaid').value)  || 0;
 
-      if (retail <= 0) { errorBox.textContent = 'please enter a valid drug retail cost.'; return; }
-      if (!type) { errorBox.textContent = 'please select member cost type.'; return; }
-      if (!isFinite(costValue) || costValue < 0) { errorBox.textContent = 'please enter a valid amount for the selected cost type.'; return; }
-      if (dedTotal < 0 || oopTotal < 0) { errorBox.textContent = 'please enter valid plan totals for deductible and oop.'; return; }
+      // validation for auto-calc: only show errors if enough context exists
+      // show boxes only when we have retail and type & amount
+      const hasCostType = !!type && isFinite(costVal) && costVal >= 0;
+      const hasRetail   = retail > 0;
 
-      // clamp paid vs totals
+      // default hide boxes until we have enough to show something meaningful
+      const boxCost = document.getElementById('boxCost');
+      const boxAcc  = document.getElementById('boxAcc');
+      if (!(hasRetail && hasCostType)) {
+        boxCost.style.display = 'none';
+        boxAcc.style.display  = 'none';
+        return;
+      }
+
+      // validate totals (keep messages lowercase)
+      if (dedTotal < 0 || oopTotal < 0) {
+        errorBox.textContent = 'please enter valid plan totals for deductible and oop.';
+        boxCost.style.display = 'none';
+        boxAcc.style.display  = 'none';
+        return;
+      }
+
       const safeDedPaid = Math.min(Math.max(dedPaid, 0), Math.max(dedTotal, 0));
       const safeOopPaid = Math.min(Math.max(oopPaid, 0), Math.max(oopTotal, 0));
 
       let remainingDedBefore = Math.max(dedTotal - safeDedPaid, 0);
       let remainingOOPBefore = Math.max(oopTotal - safeOopPaid, 0);
 
-      // if oop already met, member pays $0
+      let memberCostFinal = 0;
+      let newDedPaid = safeDedPaid;
+      let newOOP = safeOopPaid;
+
+      // if oop already met, member pays 0
       if (safeOopPaid >= oopTotal) {
-        updateOutputs({
-          remainingDedBefore,
-          remainingOOPBefore,
-          memberCostFinal: 0,
-          newDedPaid: safeDedPaid,
-          newOOP: safeOopPaid,
-          dedTotal,
-          oopTotal
-        });
-        return;
-      }
-
-      // deductible first (original logic)
-      let dedApplied = 0;
-      if (remainingDedBefore > 0) {
-        dedApplied = Math.min(retail, remainingDedBefore);
-      }
-
-      let retailAfterDed = retail - dedApplied;
-
-      // cost-sharing on remaining retail
-      let costShare = 0;
-      if (retailAfterDed > 0) {
-        if (type === 'copay') {
-          costShare = costValue;
-        } else {
-          costShare = retailAfterDed * (costValue / 100);
+        // results
+      } else {
+        // deductible first
+        let dedApplied = 0;
+        if (remainingDedBefore > 0) {
+          dedApplied = Math.min(retail, remainingDedBefore);
         }
+
+        let retailAfterDed = retail - dedApplied;
+
+        // cost-sharing
+        let costShare = 0;
+        if (retailAfterDed > 0) {
+          if (type === 'copay') costShare = costVal;
+          else                  costShare = retailAfterDed * (costVal / 100);
+        }
+
+        const preCap = dedApplied + costShare;
+
+        // OOP cap
+        const remainingOOPAvail = Math.max(oopTotal - safeOopPaid, 0);
+        memberCostFinal = Math.min(preCap, remainingOOPAvail);
+
+        // update accumulators paid
+        newDedPaid = safeDedPaid + dedApplied;
+        newOOP     = safeOopPaid + memberCostFinal;
       }
 
-      // member cost before OOP cap
-      let memberCostPreCap = dedApplied + costShare;
-
-      // apply OOP cap
-      let remainingOOPAvail = Math.max(oopTotal - safeOopPaid, 0);
-      let memberCostFinal = Math.min(memberCostPreCap, remainingOOPAvail);
-
-      // updated accumulators
-      let newDedPaid = safeDedPaid + dedApplied;
-      let newOOP = safeOopPaid + memberCostFinal;
-
-      updateOutputs({
-        remainingDedBefore,
-        remainingOOPBefore,
-        memberCostFinal,
-        newDedPaid,
-        newOOP,
-        dedTotal,
-        oopTotal
-      });
-    }
-
-    function updateOutputs(data) {
-      const {
-        remainingDedBefore = 0,
-        remainingOOPBefore = 0,
-        memberCostFinal = 0,
-        newDedPaid = 0,
-        newOOP = 0,
-        dedTotal = 0,
-        oopTotal = 0
-      } = data;
-
-      const remainingDedAfterFill = Math.max(dedTotal - newDedPaid, 0);
-      const remainingOOPAfterFill = Math.max(oopTotal - newOOP, 0);
+      const remDedAfter = Math.max(dedTotal - newDedPaid, 0);
+      const remOopAfter = Math.max(oopTotal - newOOP, 0);
 
       // show boxes
-      document.getElementById('boxCost').style.display = '';
-      document.getElementById('boxAcc').style.display = '';
+      boxCost.style.display = '';
+      boxAcc.style.display  = '';
 
-      // cost box
+      // update UI
       document.getElementById('costValueOut').textContent = `$${fmt(memberCostFinal)}`;
 
-      // accumulators: prior to fill
       document.getElementById('priorDed').textContent = `$${fmt(remainingDedBefore)}`;
       document.getElementById('priorOop').textContent = `$${fmt(remainingOOPBefore)}`;
 
-      // after fill (totals paid)
       document.getElementById('afterDed').textContent = `$${fmt(newDedPaid)}`;
       document.getElementById('afterOop').textContent = `$${fmt(newOOP)}`;
 
-      // remaining (use “satisfied” if 0 or less)
-      document.getElementById('remDed').textContent = remainingDedAfterFill > 0 ? `$${fmt(remainingDedAfterFill)}` : 'satisfied';
-      document.getElementById('remOop').textContent  = remainingOOPAfterFill > 0 ? `$${fmt(remainingOOPAfterFill)}` : 'satisfied';
+      document.getElementById('remDed').textContent = remDedAfter > 0 ? `$${fmt(remDedAfter)}` : 'satisfied';
+      document.getElementById('remOop').textContent = remOopAfter > 0 ? `$${fmt(remOopAfter)}` : 'satisfied';
     }
+
+    // wire up auto-calc listeners
+    function bindAutoCalc() {
+      const ids = [
+        'retail','costType','costValue',
+        'dedTotal','dedPaid','oopTotal','oopPaid'
+      ];
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const handler = () => {
+          if (id === 'costType') {
+            applyCostTypeUI();
+          }
+          compute();
+        };
+        el.addEventListener('input', handler);
+        el.addEventListener('change', handler);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      applyCostTypeUI();
+      bindAutoCalc();
+      compute(); // run once on load (helps if browser autofills)
+    });
   </script>
 
 </body>
