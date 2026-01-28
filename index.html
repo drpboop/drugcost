@@ -1,149 +1,402 @@
-<script>
-  // format helper
-  function fmt(n) { return (isFinite(n) ? n : 0).toFixed(2); }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>drug cost & accumulator calculator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Century+Gothic&display=swap');
 
-  // core math (deductible first -> copay/coins -> OOP cap)
-  function compute() {
-    const errorBox = document.getElementById('errorBox');
-    errorBox.textContent = '';
-
-    // Numbers via valueAsNumber for consistency
-    const retailRaw   = document.getElementById('retail').valueAsNumber ?? NaN;
-    const retail      = Number.isFinite(retailRaw) ? retailRaw : 0;
-
-    const shareVal    = document.getElementById('shareAmount').valueAsNumber ?? NaN;
-    const shareUnit   = document.getElementById('shareUnit').value; // '$' or '%'
-
-    const dedTotalRaw = document.getElementById('dedTotal').valueAsNumber ?? NaN;
-    const dedPaidRaw  = document.getElementById('dedPaid').valueAsNumber  ?? NaN;
-    const oopTotalRaw = document.getElementById('oopTotal').valueAsNumber ?? NaN;
-    const oopPaidRaw  = document.getElementById('oopPaid').valueAsNumber  ?? NaN;
-
-    const dedTotal = Number.isFinite(dedTotalRaw) ? dedTotalRaw : 0;
-    const dedPaid  = Number.isFinite(dedPaidRaw)  ? dedPaidRaw  : 0;
-    const oopTotal = Number.isFinite(oopTotalRaw) ? oopTotalRaw : 0;
-    const oopPaid  = Number.isFinite(oopPaidRaw)  ? oopPaidRaw  : 0;
-
-    // only render results once we have retail + amount + type
-    const hasRetail = retail > 0;
-    const hasShare  = Number.isFinite(shareVal) && shareVal >= 0 && (shareUnit === '$' || shareUnit === '%');
-
-    const boxBenefit = document.getElementById('boxBenefit');
-    const boxAcc  = document.getElementById('boxAcc');
-
-    if (!(hasRetail && hasShare)) {
-      boxBenefit.style.display = 'none';
-      boxAcc.style.display  = 'none';
-      return;
+    :root{
+      --bg:#000;
+      --panel:#111;
+      --field:#222;
+      --text:#fff;
+      --hint:#9bd1ff;
+      --hint2:#cfe6ff;
+      --muted:#b9cde6;
+      --shadow:0 0 10px rgba(255,255,255,0.2);
+      --tight:8px;
+      --xtight:4px;
     }
 
-    // basic sanity for totals
-    if (dedTotal < 0 || oopTotal < 0) {
-      errorBox.textContent = 'please enter valid plan totals for deductible and oop.';
-      boxBenefit.style.display = 'none';
-      boxAcc.style.display  = 'none';
-      return;
+    * { box-sizing: border-box; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Century Gothic', sans-serif;
+      margin: 0;
+      padding: 20px;
+      text-transform: lowercase;
     }
 
-    // clamp paid vs totals
-    const safeDedPaid = Math.min(Math.max(dedPaid, 0), Math.max(dedTotal, 0));
-    const safeOopPaid = Math.min(Math.max(oopPaid, 0), Math.max(oopTotal, 0));
+    .container {
+      background-color: var(--panel);
+      padding: 16px;                 /* tight */
+      border-radius: 10px;
+      width: 90%;
+      max-width: 550px;
+      margin: 0 auto;
+      box-shadow: var(--shadow);
+    }
 
-    const remainingDedBefore = Math.max(dedTotal - safeDedPaid, 0);
-    const remainingOOPBefore = Math.max(oopTotal - safeOopPaid, 0);
+    h2 {
+      text-align: center;
+      color: #7cc6ff;
+      margin: 0 0 var(--tight) 0;    /* tight */
+      font-weight: 700;
+      font-size: 1.2em;              /* compact */
+    }
 
-    let dedApplied = 0;
-    let costShare = 0;
-    let preCap = 0;
-    let memberCostFinal = 0;
-    let capAdj = 0;
-    let newDedPaid = safeDedPaid;
-    let newOOP = safeOopPaid;
+    label {
+      display: block;
+      width: 100%;
+      margin: var(--xtight) 0 var(--xtight) 2px; /* very tight label spacing */
+      background: transparent;
+      color: var(--hint2);
+      border: none;
+      padding: 0;
+      font-family: 'Century Gothic', sans-serif;
+    }
 
-    if (safeOopPaid < oopTotal) {
-      // deductible first
-      dedApplied = Math.min(remainingDedBefore, retail);
-      const retailAfterDed = retail - dedApplied;
+    input, select {
+      display: block;
+      width: 100%;
+      margin-bottom: var(--xtight);  /* extra tight between controls */
+      background-color: var(--field);
+      color: var(--text);
+      border: none;
+      padding: 8px;
+      border-radius: 6px;
+      font-family: 'Century Gothic', sans-serif;
+    }
 
-      // cost-sharing on the post-deductible remainder
-      if (retailAfterDed > 0) {
-        if (shareUnit === '$') {
-          costShare = shareVal; // copay
-        } else {
-          costShare = retailAfterDed * (shareVal / 100); // coinsurance
-        }
+    input::placeholder { color: #9aa5b1; }
+
+    .row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--tight);            /* tight column gap */
+      margin-top: var(--xtight);
+    }
+
+    /* inline amount + type selector (each with its own label above) */
+    .amount-grid {
+      display: grid;
+      grid-template-columns: 1fr 120px;  /* amount input + type dropdown */
+      gap: var(--tight);
+      align-items: start;
+    }
+
+    .error {
+      color: #ff6b6b;
+      font-size: 0.95em;
+      margin-top: var(--xtight);
+      text-align: center;
+      min-height: 1.2em;            /* keep layout steady */
+    }
+
+    /* compact result boxes */
+    .box {
+      background-color: var(--field);
+      border-radius: 8px;
+      padding: 10px;                /* tight padding */
+      margin-top: var(--tight);
+      text-align: center;
+      line-height: 1.35;            /* tight line height */
+      color: var(--muted);
+    }
+
+    .box-title {
+      color: var(--hint);
+      margin: 0 0 6px 0;            /* tight */
+      font-weight: 600;
+      font-size: 1.0em;
+    }
+
+    .sub-title {
+      color: var(--hint2);
+      margin: 6px 0 4px 0;          /* tight */
+      font-weight: 600;
+      font-size: 0.95em;
+    }
+
+    .label-line {
+      margin-top: 4px;              /* label separated slightly */
+      color: var(--hint2);
+    }
+
+    .value-line {
+      margin-top: 2px;              /* value sits directly beneath label */
+      color: #ffffff;               /* plain (not bold) */
+    }
+
+    .divider {
+      margin: 6px auto;
+      width: 60%;
+      opacity: 0.35;
+      border-top: 1px solid #7a8aa0;
+    }
+
+    /* hide utility */
+    .hide { display: none; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h2>drug cost & accumulator calculator</h2>
+
+    <!-- inputs -->
+    <label for="retail">drug retail cost ($):</label>
+    <input type="number" id="retail" placeholder="example: 150.00" min="0" step="0.01" />
+
+    <!-- amount first, then type beside it -->
+    <div class="amount-grid">
+      <div>
+        <label for="shareAmount">mbr benefit</label>
+        <input
+          type="number"
+          id="shareAmount"
+          placeholder="enter amount"
+          min="0"
+          step="0.01"
+        />
+      </div>
+      <div>
+        <label for="shareUnit">type</label>
+        <select id="shareUnit" aria-label="type">
+          <option value="$">$</option>
+          <option value="%">%</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- totals first, then current paid -->
+    <div class="row-2">
+      <div>
+        <label for="dedTotal">total deductible amount ($):</label>
+        <input type="number" id="dedTotal" placeholder="example: 250" min="0" step="0.01" />
+      </div>
+      <div>
+        <label for="dedPaid">current deductible paid ($):</label>
+        <input type="number" id="dedPaid" placeholder="example: 0" min="0" step="0.01" />
+      </div>
+    </div>
+
+    <div class="row-2">
+      <div>
+        <label for="oopTotal">total out-of-pocket max ($):</label>
+        <input type="number" id="oopTotal" placeholder="example: 2000" min="0" step="0.01" />
+      </div>
+      <div>
+        <label for="oopPaid">current out-of-pocket paid ($):</label>
+        <input type="number" id="oopPaid" placeholder="example: 0" min="0" step="0.01" />
+      </div>
+    </div>
+
+    <div id="errorBox" class="error" aria-live="polite"></div>
+
+    <!-- results: tight layout, two compact boxes -->
+    <div id="boxBenefit" class="box" style="display:none;">
+      <div class="box-title">mbr costs</div>
+
+      <div class="label-line">total costs</div>
+      <div class="value-line" id="mbTotal">$0.00</div>
+
+      <div class="divider"></div>
+
+      <div class="label-line">applied to deductible</div>
+      <div class="value-line" id="mbDedApplied">$0.00</div>
+
+      <div class="label-line" id="mbShareLabel">applied to cost-share</div>
+      <div class="value-line" id="mbShareApplied">$0.00</div>
+
+      <!-- only visible when OOP cap reduces member cost -->
+      <div id="capGroup" class="hide">
+        <div class="label-line">oop cap adjustment</div>
+        <div class="value-line" id="mbCapAdj">-$0.00</div>
+      </div>
+    </div>
+
+    <div id="boxAcc" class="box" style="display:none;">
+      <div class="box-title">accumulators</div>
+
+      <div class="sub-title">prior to fill</div>
+      <div class="label-line">deductible</div>
+      <div class="value-line" id="priorDed">$0.00</div>
+      <div class="label-line">oop</div>
+      <div class="value-line" id="priorOop">$0.00</div>
+
+      <div class="divider"></div>
+
+      <div class="sub-title">after fill</div>
+      <div class="label-line">deductible</div>
+      <div class="value-line" id="afterDed">$0.00</div>
+      <div class="label-line">oop</div>
+      <div class="value-line" id="afterOop">$0.00</div>
+
+      <div class="divider"></div>
+
+      <div class="sub-title">remaining</div>
+      <div class="label-line">deductible</div>
+      <div class="value-line" id="remDed">$0.00</div>
+      <div class="label-line">oop</div>
+      <div class="value-line" id="remOop">$0.00</div>
+    </div>
+  </div>
+
+  <script>
+    // format helper
+    function fmt(n) { return (isFinite(n) ? n : 0).toFixed(2); }
+
+    // core math (deductible first -> copay/coins -> OOP cap)
+    function compute() {
+      const errorBox = document.getElementById('errorBox');
+      errorBox.textContent = '';
+
+      // Numbers read via valueAsNumber (NaN when empty/invalid)
+      const retailRaw   = document.getElementById('retail').valueAsNumber ?? NaN;
+      const shareValRaw = document.getElementById('shareAmount').valueAsNumber ?? NaN;
+      const shareUnit   = document.getElementById('shareUnit').value; // '$' or '%'
+
+      const dedTotalRaw = document.getElementById('dedTotal').valueAsNumber ?? NaN;
+      const dedPaidRaw  = document.getElementById('dedPaid').valueAsNumber  ?? NaN;
+      const oopTotalRaw = document.getElementById('oopTotal').valueAsNumber ?? NaN;
+      const oopPaidRaw  = document.getElementById('oopPaid').valueAsNumber  ?? NaN;
+
+      const retail   = Number.isFinite(retailRaw)   ? retailRaw   : 0;
+      const shareVal = Number.isFinite(shareValRaw) ? shareValRaw : NaN;
+
+      const dedTotal = Number.isFinite(dedTotalRaw) ? dedTotalRaw : 0;
+      const dedPaid  = Number.isFinite(dedPaidRaw)  ? dedPaidRaw  : 0;
+      const oopTotal = Number.isFinite(oopTotalRaw) ? oopTotalRaw : 0;
+      const oopPaid  = Number.isFinite(oopPaidRaw)  ? oopPaidRaw  : 0;
+
+      // only render results once we have retail + amount + type
+      const hasRetail = retail > 0;
+      const hasShare  = Number.isFinite(shareVal) && shareVal >= 0 && (shareUnit === '$' || shareUnit === '%');
+
+      const boxBenefit = document.getElementById('boxBenefit');
+      const boxAcc  = document.getElementById('boxAcc');
+
+      if (!(hasRetail && hasShare)) {
+        boxBenefit.style.display = 'none';
+        boxAcc.style.display  = 'none';
+        return;
       }
 
-      preCap = dedApplied + costShare;
+      // basic sanity for totals
+      if (dedTotal < 0 || oopTotal < 0) {
+        errorBox.textContent = 'please enter valid plan totals for deductible and oop.';
+        boxBenefit.style.display = 'none';
+        boxAcc.style.display  = 'none';
+        return;
+      }
 
-      // OOP cap
-      const remainingOOPAvail = Math.max(oopTotal - safeOopPaid, 0);
-      memberCostFinal = Math.min(preCap, remainingOOPAvail);
-      capAdj = Math.max(preCap - memberCostFinal, 0);
+      // clamp paid vs totals
+      const safeDedPaid = Math.min(Math.max(dedPaid, 0), Math.max(dedTotal, 0));
+      const safeOopPaid = Math.min(Math.max(oopPaid, 0), Math.max(oopTotal, 0));
 
-      // update accumulators paid
-      newDedPaid = safeDedPaid + dedApplied;
-      newOOP     = safeOopPaid + memberCostFinal;
+      const remainingDedBefore = Math.max(dedTotal - safeDedPaid, 0);
+      const remainingOOPBefore = Math.max(oopTotal - safeOopPaid, 0);
+
+      let dedApplied = 0;
+      let costShare = 0;
+      let preCap = 0;
+      let memberCostFinal = 0;
+      let capAdj = 0;
+      let newDedPaid = safeDedPaid;
+      let newOOP = safeOopPaid;
+
+      if (safeOopPaid < oopTotal) {
+        // deductible first
+        dedApplied = Math.min(remainingDedBefore, retail);
+        const retailAfterDed = retail - dedApplied;
+
+        // cost-sharing on the post-deductible remainder
+        if (retailAfterDed > 0) {
+          if (shareUnit === '$') {
+            costShare = shareVal; // copay
+          } else {
+            costShare = retailAfterDed * (shareVal / 100); // coinsurance
+          }
+        }
+
+        preCap = dedApplied + costShare;
+
+        // OOP cap
+        const remainingOOPAvail = Math.max(oopTotal - safeOopPaid, 0);
+        memberCostFinal = Math.min(preCap, remainingOOPAvail);
+        capAdj = Math.max(preCap - memberCostFinal, 0);
+
+        // update accumulators paid
+        newDedPaid = safeDedPaid + dedApplied;
+        newOOP     = safeOopPaid + memberCostFinal;
+      }
+
+      const remDedAfter = Math.max(dedTotal - newDedPaid, 0);
+      const remOopAfter = Math.max(oopTotal - newOOP, 0);
+
+      // show + update UI
+      boxBenefit.style.display = '';
+      boxAcc.style.display  = '';
+
+      // mbr costs (renamed & reworded)
+      document.getElementById('mbTotal').textContent      = `$${fmt(memberCostFinal)}`;
+      document.getElementById('mbDedApplied').textContent = `$${fmt(dedApplied)}`;
+
+      const shareLabelEl = document.getElementById('mbShareLabel');
+      shareLabelEl.textContent = (shareUnit === '$') ? 'applied to copay' : 'applied to coinsurance';
+      document.getElementById('mbShareApplied').textContent = `$${fmt(costShare)}`;
+
+      const capGroup = document.getElementById('capGroup');
+      if (capAdj > 0.00001) {
+        capGroup.classList.remove('hide');
+        document.getElementById('mbCapAdj').textContent = `-$${fmt(capAdj)}`;
+      } else {
+        capGroup.classList.add('hide');
+      }
+
+      // accumulators box
+      document.getElementById('priorDed').textContent = `$${fmt(remainingDedBefore)}`;
+      document.getElementById('priorOop').textContent = `$${fmt(remainingOOPBefore)}`;
+
+      document.getElementById('afterDed').textContent = `$${fmt(newDedPaid)}`;
+      document.getElementById('afterOop').textContent = `$${fmt(newOOP)}`;
+
+      document.getElementById('remDed').textContent = remDedAfter > 0 ? `$${fmt(remDedAfter)}` : 'satisfied';
+      document.getElementById('remOop').textContent = remOopAfter > 0 ? `$${fmt(remOopAfter)}` : 'satisfied';
     }
 
-    const remDedAfter = Math.max(dedTotal - newDedPaid, 0);
-    const remOopAfter = Math.max(oopTotal - newOOP, 0);
-
-    // show + update UI
-    boxBenefit.style.display = '';
-    boxAcc.style.display  = '';
-
-    // mbr costs (renamed & reworded)
-    document.getElementById('mbTotal').textContent      = `$${fmt(memberCostFinal)}`;
-    document.getElementById('mbDedApplied').textContent = `$${fmt(dedApplied)}`;
-
-    const shareLabelEl = document.getElementById('mbShareLabel');
-    shareLabelEl.textContent = (shareUnit === '$') ? 'applied to copay' : 'applied to coinsurance';
-    document.getElementById('mbShareApplied').textContent = `$${fmt(costShare)}`;
-
-    const capGroup = document.getElementById('capGroup');
-    if (capAdj > 0.00001) {
-      capGroup.classList.remove('hide');
-      document.getElementById('mbCapAdj').textContent = `-$${fmt(capAdj)}`;
-    } else {
-      capGroup.classList.add('hide');
+    // bind auto-calc to all inputs & type selector
+    function bindAutoCalc() {
+      const ids = [
+        'retail',
+        'shareAmount','shareUnit',
+        'dedTotal','dedPaid','oopTotal','oopPaid'
+      ];
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', compute);   // typing/paste
+        el.addEventListener('change', compute);  // value committed
+        el.addEventListener('blur', compute);    // focus-out (Tab/mouse) -> safety net
+      });
     }
 
-    // accumulators box
-    document.getElementById('priorDed').textContent = `$${fmt(remainingDedBefore)}`;
-    document.getElementById('priorOop').textContent = `$${fmt(remainingOOPBefore)}`;
-
-    document.getElementById('afterDed').textContent = `$${fmt(newDedPaid)}`;
-    document.getElementById('afterOop').textContent = `$${fmt(newOOP)}`;
-
-    document.getElementById('remDed').textContent = remDedAfter > 0 ? `$${fmt(remDedAfter)}` : 'satisfied';
-    document.getElementById('remOop').textContent = remOopAfter > 0 ? `$${fmt(remOopAfter)}` : 'satisfied';
-  }
-
-  // bind auto-calc to all inputs & type selector
-  function bindAutoCalc() {
-    const ids = [
-      'retail',
-      'shareAmount','shareUnit',
-      'dedTotal','dedPaid','oopTotal','oopPaid'
-    ];
-    ids.forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.addEventListener('input', compute);
-      el.addEventListener('change', compute);
-      el.addEventListener('blur', compute); // <- key addition for Tab reliability
+    // init
+    document.addEventListener('DOMContentLoaded', () => {
+      bindAutoCalc();
+      compute(); // run once for autofilled values (if any)
     });
-  }
 
-  // init
-  document.addEventListener('DOMContentLoaded', () => {
-    bindAutoCalc();
-    compute(); // run once for autofilled values (if any)
-  });
+    // Optional: compute on Enter anywhere (doesn't affect Tab)
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') compute();
+    });
+  </script>
 
-  // (Optional) compute on Enter anywhere
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') compute();
-  });
-</script>
+</body>
+</html>
